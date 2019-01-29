@@ -43,6 +43,12 @@ CASE_BAM = expand("03aln/{sample}.sorted.bam", sample=CASES)
 ALL_PEAKS = []
 ALL_inputSubtract_BIGWIG = []
 ALL_SUPER = []
+ALL_GAPPEDPEAK = []
+ALL_BDGControl = []
+ALL_BDGtreat = []
+ALL_BIGWIGFE = []
+ALL_BIGWIGLR = []
+ALL_BIGWIGUCSC = []
 
 for case in CASES:
     sample = "_".join(case.split("_")[0:-1])
@@ -53,6 +59,13 @@ for case in CASES:
         ALL_PEAKS.append("09peak_macs2/{}_vs_{}_macs2_peaks.xls".format(case, control))
         ALL_inputSubtract_BIGWIG.append("06bigwig_inputSubtract/{}_subtract_{}.bw".format(case, control))
         ALL_SUPER.append("11superEnhancer/{}_vs_{}-super/".format(case, control))
+        ALL_GAPPEDPEAK.append("12UCSC_gapped/{}_vs_{}_macs2_peaks.gappedPeak".format(case, control))
+        ALL_BDGControl.append("09peak_macs2/{}_vs_{}_macs2_control_lambda.bdg".format(case, control))
+        ALL_BDGtreat.append("09peak_macs2/{}_vs_{}_macs2_treat_pileup.bdg".format(case, control))
+        ALL_BIGWIGFE.append("09peak_macs2/{}_vs_{}_FE.bw".format(case, control))
+        ALL_BIGWIGLR.append("09peak_macs2/{}_vs_{}_logLR.bw".format(case, control))
+        ALL_BIGWIGUCSC.append("06bigwig_inputSubtract/{}_subtract_{}.UCSCbw".format(case,control))
+
 
 ALL_SAMPLES = CASES + CONTROLS_UNIQUE
 ALL_BAM     = CONTROL_BAM + CASE_BAM
@@ -81,6 +94,16 @@ TARGETS.extend(ALL_FASTQ)
 TARGETS.extend(ALL_FLAGSTAT)
 TARGETS.extend(ALL_QC)
 TARGETS.extend(ALL_SUPER)
+TARGETS.extend(ALL_GAPPEDPEAK)
+TARGETS.extend(ALL_BDGControl)
+TARGETS.extend(ALL_BDGtreat)
+TARGETS.extend(ALL_BIGWIGFE)
+TARGETS.extend(ALL_BIGWIGLR)
+TARGETS.extend(ALL_BIGWIGUCSC)
+
+
+
+
 
 ## sometimes if if you have TF ChIP-seq data, do not include it to chromHMM, or you want
 ## only a subset of the histone marks be included in the chromHMM call
@@ -223,7 +246,7 @@ rule make_inputSubtract_bigwigs:
     message: "making input subtracted bigwig for {input}"
     shell:
         """
-        bamCompare --bamfile1 {input[1]} --bamfile2 {input[0]} --normalizeUsing RPKM --scaleFactorsMethod None --operation subtract --binSize 30 --smoothLength 300 -p 5  --extendReads 200 -o {output} 2> {log}
+        bamCompare --bamfile1 {input[1]} --bamfile2 {input[0]} --normalizeUsing RPKM --scaleFactorsMethod None --binSize 30 --smoothLength 300 -p 5  --extendReads 200 -o {output} 2> {log}
         """
 
 rule make_bigwigs:
@@ -238,7 +261,18 @@ rule make_bigwigs:
         bamCoverage -b {input[0]} --normalizeUsing RPKM --binSize 30 --smoothLength 300 -p 5 --extendReads 200 -o {output} 2> {log}
         """
 
-
+rule get_UCSC_bigwig:
+    input : "06bigwig_inputSubtract/{case}_subtract_{control}.bw"
+    output : "06bigwig_inputSubtract/{case}_subtract_{control}.UCSCbw"
+    params : 
+        wig1 = "06bigwig_inputSubtract/{case}_subtract_{control}_temp.wig",
+        wig2 = "06bigwig_inputSubtract/{case}_subtract_{control}_temp2.wig"
+    shell:
+        """
+        ./bigWigToWig {input} {params.wig1}
+        sed 's/^/chr/g' {params.wig1} | LC_COLLATE=C sort -k1,1 -k2,2n > {params.wig2}
+        ./wigToBigWig {params.wig2} {output}
+        """
 
 rule call_peaks_macs1:
     input: control = "04aln_downsample/{control}-downsample.sorted.bam", case="04aln_downsample/{case}-downsample.sorted.bam"
@@ -255,8 +289,8 @@ rule call_peaks_macs1:
         """
         source activate macs
         macs -t {input.case} \
-            -c {input.control} --keep-dup all -f BAM -g {config[macs_g]} \
-            --outdir 08peak_macs1 -n {params.name1} -p {config[macs_pvalue]} &> {log.macs1}
+            -c {input.control} --keep-dup all --wig -f BAM -g {config[macs_g]} \
+            --outdir 08peak_macs1 -n {params.name1} --single-profile -p {config[macs_pvalue]} &> {log.macs1}
 
         # nomodel for macs14, shift-size will be 100 bp (e.g. fragment length of 200bp)
         # can get fragment length from the phantompeakqual. Now set it to 200 bp for all.
@@ -264,10 +298,15 @@ rule call_peaks_macs1:
             -c {input.control} --keep-dup all -f BAM -g {config[macs_g]} \
             --outdir 08peak_macs1 -n {params.name2} --nomodel -p {config[macs_pvalue]} &> {log.macs1_nomodel}
         """
+        
 
 rule call_peaks_macs2:
     input: control = "04aln_downsample/{control}-downsample.sorted.bam", case="04aln_downsample/{case}-downsample.sorted.bam"
-    output: bed = "09peak_macs2/{case}_vs_{control}_macs2_peaks.xls"
+    output:
+        bed = "09peak_macs2/{case}_vs_{control}_macs2_peaks.xls",
+        gapped = "09peak_macs2/{case}_vs_{control}_macs2_peaks.gappedPeak",
+        treat = temp("09peak_macs2/{case}_vs_{control}_macs2_control_lambda.bdg"),
+        control = temp("09peak_macs2/{case}_vs_{control}_macs2_treat_pileup.bdg")
     log: "00log/{case}_vs_{control}_call_peaks_macs2.log"
     params:
         name = "{case}_vs_{control}_macs2",
@@ -278,8 +317,52 @@ rule call_peaks_macs2:
         source activate macs
         ## for macs2, when nomodel is set, --extsize is default to 200bp, this is the same as 2 * shift-size in macs14.
         macs2 callpeak -t {input.case} \
-            -c {input.control} --keep-dup all -f BAM -g {config[macs2_g]} \
+            -c {input.control} --keep-dup all -f BAM --bdg -g {config[macs2_g]} \
             --outdir 09peak_macs2 -n {params.name} -p {config[macs2_pvalue]} --broad --broad-cutoff {config[macs2_pvalue_broad]} --nomodel &> {log}
+        """
+
+rule get_bdg_FE:
+    input : treat="09peak_macs2/{case}_vs_{control}_macs2_control_lambda.bdg", control="09peak_macs2/{case}_vs_{control}_macs2_treat_pileup.bdg"
+    output : FE = temp("09peak_macs2/{case}_vs_{control}_FE.bdg")
+    shell:
+        """
+        source activate macs
+        macs2 bdgcmp -t {input.treat} -c {input.control} -o {output.FE} -m FE 
+        """
+
+rule get_bdg_LR:
+    input : treat="09peak_macs2/{case}_vs_{control}_macs2_control_lambda.bdg", control="09peak_macs2/{case}_vs_{control}_macs2_treat_pileup.bdg"
+    output : logLR = temp("09peak_macs2/{case}_vs_{control}_logLR.bdg")
+    shell:
+        """
+        source activate macs
+        macs2 bdgcmp -t {input.treat} -c {input.control} -o {output.logLR} -m ppois -p 0.00001
+        """
+##Here bed graph are converted to bigwig. Before they are sorted and the chr is added for the UCSC browser
+rule get_bigwig_FE:
+    input : 
+        FE = "09peak_macs2/{case}_vs_{control}_FE.bdg",
+    output : 
+        FE = "09peak_macs2/{case}_vs_{control}_FE.bw",
+    params :
+        tempFE = temp("09peak_macs2/{case}_vs_{control}_FE.temp")
+    shell:
+        """
+        sed 's/^/chr/g' {input.FE} | LC_COLLATE=C sort -k1,1 -k2,2n > {params.tempFE}
+        ./bedGraphToBigWig {params.tempFE} ~/genome_size_wchr_GRCh37.75.txt {output.FE}
+        """
+
+rule get_bigwig_LR:
+    input : 
+        logLR = "09peak_macs2/{case}_vs_{control}_logLR.bdg"
+    output : 
+        logLR = "09peak_macs2/{case}_vs_{control}_logLR.bw"
+    params :
+        tempLR = temp("09peak_macs2/{case}_vs_{control}_logLR.temp")
+    shell:
+        """
+        sed 's/^/chr/g' {input.logLR} | LC_COLLATE=C sort -k1,1 -k2,2n > {params.tempLR}
+        ./bedGraphToBigWig {params.tempLR} ~/genome_size_wchr_GRCh37.75.txt {output.logLR}
         """
 
 rule multiQC:
@@ -376,3 +459,10 @@ if config["chromHMM"]:
             """
             java {params.chromhmm} LearnModel -p 10 -b {config[binsize]} {input} {output} {config[state]} {config[chromHmm_g]} 2> {log.chromhmm_learn}
             """
+rule clean_gapped_peak_for_UCSC:
+    input: "09peak_macs2/{case}_vs_{control}_macs2_peaks.gappedPeak"
+    output: "12UCSC_gapped/{case}_vs_{control}_macs2_peaks.gappedPeak"
+    shell:
+        """
+        sed 's/^/chr/g' {input} | awk '{{$7=0;$8=0;print $0}}' | grep -v GL | grep -v CHR | grep -v HG > {output}
+        """
