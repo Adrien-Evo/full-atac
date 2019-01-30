@@ -270,8 +270,8 @@ rule get_UCSC_bigwig:
     shell:
         """
         ./bigWigToWig {input} {params.wig1}
-        sed 's/^/chr/g' {params.wig1} | LC_COLLATE=C sort -k1,1 -k2,2n > {params.wig2}
-        ./wigToBigWig {params.wig2} {output}
+        sed -r 's/^[0-9]|^X|^Y|^MT/chr&/g' {params.wig1} | LC_COLLATE=C sort -k1,1 -k2,2n > {params.wig2}
+        ./wigToBigWig {params.wig2} ~/genome_size_UCSC_compatible_GRCh37.75.txt {output}
         """
 
 rule call_peaks_macs1:
@@ -327,7 +327,7 @@ rule get_bdg_FE:
     shell:
         """
         source activate macs
-        macs2 bdgcmp -t {input.treat} -c {input.control} -o {output.FE} -m FE 
+        macs2 bdgcmp -t {input.treat} -c {input.control} -o {output.FE} -m subtract 
         """
 
 rule get_bdg_LR:
@@ -348,8 +348,8 @@ rule get_bigwig_FE:
         tempFE = temp("09peak_macs2/{case}_vs_{control}_FE.temp")
     shell:
         """
-        sed 's/^/chr/g' {input.FE} | LC_COLLATE=C sort -k1,1 -k2,2n > {params.tempFE}
-        ./bedGraphToBigWig {params.tempFE} ~/genome_size_wchr_GRCh37.75.txt {output.FE}
+        sed -r 's/^[0-9]|^X|^Y|^MT/chr&/g' {input.FE} | LC_COLLATE=C sort -k1,1 -k2,2n > {params.tempFE}
+        ./bedGraphToBigWig {params.tempFE} ~/genome_size_UCSC_compatible_GRCh37.75.txt {output.FE}
         """
 
 rule get_bigwig_LR:
