@@ -6,7 +6,7 @@ import json
 shell.prefix("set -eo pipefail; echo BEGIN at $(date); ")
 shell.suffix("; exitstat=$?; echo END at $(date); echo exit status was $exitstat; exit $exitstat")
 
-configfile: "config_Cardio.yaml"
+configfile: "config.yaml"
 localrules: all
 # localrules will let the rule run locally rather than submitting to cluster
 # computing nodes, this is for very small jobs
@@ -64,7 +64,7 @@ for case in CASES:
         ALL_BDGtreat.append("09peak_macs2/{}_vs_{}_macs2_treat_pileup.bdg".format(case, control))
         ALL_BIGWIGFE.append("09peak_macs2/{}_vs_{}_FE.bw".format(case, control))
         ALL_BIGWIGLR.append("09peak_macs2/{}_vs_{}_logLR.bw".format(case, control))
-        ALL_BIGWIGUCSC.append("06bigwig_inputSubtract/{}_subtract_{}.UCSCbw".format(case,control))
+        ALL_BIGWIGUCSC.append("UCSC_compatible_bigWig/{}_subtract_{}.bw".format(case,control))
 
 
 ALL_SAMPLES = CASES + CONTROLS_UNIQUE
@@ -75,7 +75,7 @@ ALL_FASTQC  = expand("02fqc/{sample}_fastqc.zip", sample = ALL_SAMPLES)
 ALL_INDEX = expand("03aln/{sample}.sorted.bam.bai", sample = ALL_SAMPLES)
 ALL_DOWNSAMPLE_INDEX = expand("04aln_downsample/{sample}-downsample.sorted.bam.bai", sample = ALL_SAMPLES)
 ALL_FLAGSTAT = expand("03aln/{sample}.sorted.bam.flagstat", sample = ALL_SAMPLES)
-ALL_PHATOM = expand("05phantompeakqual/{sample}_phantom.txt", sample = ALL_SAMPLES)
+ALL_PHATOM = expand("05phantompeakqual/{sample}.spp.out", sample = ALL_SAMPLES)
 ALL_BIGWIG = expand("07bigwig/{sample}.bw", sample = ALL_SAMPLES)
 ALL_QC = ["10multiQC/multiQC_log.html"]
 
@@ -149,7 +149,6 @@ rule fastqc:
     message: "fastqc {input}: {threads}"
     shell:
         """
-        module load fastqc
         fastqc -o 02fqc -f fastq --noextract {input} 2> {log}
         """
 
@@ -201,7 +200,7 @@ rule flagstat_bam:
 
 rule phantom_peak_qual:
     input: "03aln/{sample}.sorted.bam", "03aln/{sample}.sorted.bam.bai"
-    output: "05phantompeakqual/{sample}_phantom.txt"
+    output: "05phantompeakqual/{sample}.spp.out"
     log: "00log/{sample}_phantompeakqual.log"
     threads: 4
     params: jobname = "{sample}"
@@ -238,7 +237,9 @@ rule down_sample:
         shell("samtools index {outbam}".format(outbam = output[0]))
 
 rule make_inputSubtract_bigwigs:
-    input : "04aln_downsample/{control}-downsample.sorted.bam", "04aln_downsample/{case}-downsample.sorted.bam", "04aln_downsample/{control}-downsample.sorted.bam.bai", "04aln_downsample/{case}-downsample.sorted.bam.bai"
+    input : 
+        control = "04aln_downsample/{control}-downsample.sorted.bam",
+        case =  "04aln_downsample/{case}-downsample.sorted.bam"
     output:  "06bigwig_inputSubtract/{case}_subtract_{control}.bw"
     log: "00log/{case}_{control}inputSubtract.makebw"
     threads: 5
@@ -246,7 +247,7 @@ rule make_inputSubtract_bigwigs:
     message: "making input subtracted bigwig for {input}"
     shell:
         """
-        bamCompare --bamfile1 {input[1]} --bamfile2 {input[0]} --normalizeUsing RPKM --scaleFactorsMethod None --binSize 30 --smoothLength 300 -p 5  --extendReads 200 -o {output} 2> {log}
+        bamCompare --bamfile1 {input.case} --bamfile2 {input.control} --normalizeUsing RPKM --scaleFactorsMethod None --binSize 30 --smoothLength 300 -p 5  --extendReads 200 -o {output} 2> {log}
         """
 
 rule make_bigwigs:
@@ -263,7 +264,7 @@ rule make_bigwigs:
 
 rule get_UCSC_bigwig:
     input : "06bigwig_inputSubtract/{case}_subtract_{control}.bw"
-    output : "06bigwig_inputSubtract/{case}_subtract_{control}.UCSCbw"
+    output : "UCSC_compatible_bigWig/{case}_subtract_{control}.bw"
     params : 
         wig1 = "06bigwig_inputSubtract/{case}_subtract_{control}_temp.wig",
         wig2 = "06bigwig_inputSubtract/{case}_subtract_{control}_temp2.wig"
@@ -322,12 +323,12 @@ rule call_peaks_macs2:
         """
 
 rule get_bdg_FE:
-    input : treat="09peak_macs2/{case}_vs_{control}_macs2_control_lambda.bdg", control="09peak_macs2/{case}_vs_{control}_macs2_treat_pileup.bdg"
+    input : control = "09peak_macs2/{case}_vs_{control}_macs2_control_lambda.bdg", case = "09peak_macs2/{case}_vs_{control}_macs2_treat_pileup.bdg"
     output : FE = temp("09peak_macs2/{case}_vs_{control}_FE.bdg")
     shell:
         """
         source activate macs
-        macs2 bdgcmp -t {input.treat} -c {input.control} -o {output.FE} -m subtract 
+        macs2 bdgcmp -t {input.case} -c {input.control} -o {output.FE} -m subtract 
         """
 
 rule get_bdg_LR:
@@ -369,13 +370,14 @@ rule multiQC:
     input :
         expand("00log/{sample}.align", sample = ALL_SAMPLES),
         expand("03aln/{sample}.sorted.bam.flagstat", sample = ALL_SAMPLES),
-        expand("02fqc/{sample}_fastqc.zip", sample = ALL_SAMPLES)
+        expand("02fqc/{sample}_fastqc.zip", sample = ALL_SAMPLES),
+        expand("05phantompeakqual/{sample}.spp.out", sample = ALL_SAMPLES)
     output: "10multiQC/multiQC_log.html"
     log: "00log/multiqc.log"
     message: "multiqc for all logs"
     shell:
         """
-        multiqc 02fqc 03aln 00log -o 10multiQC -d -f -v -n multiQC_log 2> {log}
+        multiqc {input} -o 10multiQC -d -f -v -n multiQC_log 2> {log}
         """
 
 ## ROSE has to be run inside the folder where ROSE_main.py resides.
