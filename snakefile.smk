@@ -1,4 +1,3 @@
-
 import csv
 import os
 import json
@@ -6,7 +5,7 @@ import json
 shell.prefix("set -eo pipefail; echo BEGIN at $(date); ")
 shell.suffix("; exitstat=$?; echo END at $(date); echo exit status was $exitstat; exit $exitstat")
 
-configfile: "config.yaml"
+configfile: "config_Cardio.yaml"
 localrules: all
 # localrules will let the rule run locally rather than submitting to cluster
 # computing nodes, this is for very small jobs
@@ -43,7 +42,7 @@ CASE_BAM = expand("03aln/{sample}.sorted.bam", sample=CASES)
 ALL_PEAKS = []
 ALL_inputSubtract_BIGWIG = []
 ALL_SUPER = []
-ALL_GAPPEDPEAK = []
+ALL_BROADPEAK = []
 ALL_BDGControl = []
 ALL_BDGtreat = []
 ALL_BIGWIGFE = []
@@ -59,7 +58,7 @@ for case in CASES:
         ALL_PEAKS.append("09peak_macs2/{}_vs_{}_macs2_peaks.xls".format(case, control))
         ALL_inputSubtract_BIGWIG.append("06bigwig_inputSubtract/{}_subtract_{}.bw".format(case, control))
         ALL_SUPER.append("11superEnhancer/{}_vs_{}-super/".format(case, control))
-        ALL_GAPPEDPEAK.append("12UCSC_gapped/{}_vs_{}_macs2_peaks.gappedPeak".format(case, control))
+        ALL_BROADPEAK.append("12UCSC_broad/{}_vs_{}_macs2_peaks.broadPeak".format(case, control))
         ALL_BDGControl.append("09peak_macs2/{}_vs_{}_macs2_control_lambda.bdg".format(case, control))
         ALL_BDGtreat.append("09peak_macs2/{}_vs_{}_macs2_treat_pileup.bdg".format(case, control))
         ALL_BIGWIGFE.append("09peak_macs2/{}_vs_{}_FE.bw".format(case, control))
@@ -94,7 +93,7 @@ TARGETS.extend(ALL_FASTQ)
 TARGETS.extend(ALL_FLAGSTAT)
 TARGETS.extend(ALL_QC)
 TARGETS.extend(ALL_SUPER)
-TARGETS.extend(ALL_GAPPEDPEAK)
+TARGETS.extend(ALL_BROADPEAK)
 TARGETS.extend(ALL_BDGControl)
 TARGETS.extend(ALL_BDGtreat)
 TARGETS.extend(ALL_BIGWIGFE)
@@ -133,7 +132,7 @@ def get_fastq(wildcards):
 ## now only for single-end ChIPseq,
 rule merge_fastqs:
     input: get_fastq
-    output: "01seq/{sample}.fastq"
+    output: temp("01seq/{sample}.fastq")
     log: "00log/{sample}_unzip"
     threads: CLUSTER["merge_fastqs"]["cpu"]
     params: jobname = "{sample}"
@@ -290,7 +289,7 @@ rule call_peaks_macs1:
         """
         source activate macs
         macs -t {input.case} \
-            -c {input.control} --keep-dup all --wig -f BAM -g {config[macs_g]} \
+            -c {input.control} --keep-dup all -f BAM -g {config[macs_g]} \
             --outdir 08peak_macs1 -n {params.name1} --single-profile -p {config[macs_pvalue]} &> {log.macs1}
 
         # nomodel for macs14, shift-size will be 100 bp (e.g. fragment length of 200bp)
@@ -305,9 +304,9 @@ rule call_peaks_macs2:
     input: control = "04aln_downsample/{control}-downsample.sorted.bam", case="04aln_downsample/{case}-downsample.sorted.bam"
     output:
         bed = "09peak_macs2/{case}_vs_{control}_macs2_peaks.xls",
-        gapped = "09peak_macs2/{case}_vs_{control}_macs2_peaks.gappedPeak",
-        treat = temp("09peak_macs2/{case}_vs_{control}_macs2_control_lambda.bdg"),
-        control = temp("09peak_macs2/{case}_vs_{control}_macs2_treat_pileup.bdg")
+        broad = "09peak_macs2/{case}_vs_{control}_macs2_peaks.broadPeak",
+        control = temp("09peak_macs2/{case}_vs_{control}_macs2_control_lambda.bdg"),
+        treat = temp("09peak_macs2/{case}_vs_{control}_macs2_treat_pileup.bdg")
     log: "00log/{case}_vs_{control}_call_peaks_macs2.log"
     params:
         name = "{case}_vs_{control}_macs2",
@@ -322,9 +321,21 @@ rule call_peaks_macs2:
             --outdir 09peak_macs2 -n {params.name} -p {config[macs2_pvalue]} --broad --broad-cutoff {config[macs2_pvalue_broad]} --nomodel &> {log}
         """
 
+#Cleaning broadGapped peak by adding "chr" on chr, sorting, setting score > 1000 to 1000 with awk then converting to bigbed
+rule get_UCSC_bigBed:
+    input: "09peak_macs2/{case}_vs_{control}_macs2_peaks.broadPeak"
+    output: "12UCSC_broad/{case}_vs_{control}_macs2_peaks.broadPeak"
+    params : 
+        bed1 = temp("12UCSC_broad/{case}_vs_{control}_macs2_peaks.bed")
+    shell:
+        """
+        sed -r 's/^[0-9]|^X|^Y|^MT/chr&/g' {input} | LC_COLLATE=C sort -k1,1 -k2,2n | awk '{{if($5 > 1000) $5 = 1000}}; {{print $0}}' > {params.bed1}
+        ./bedToBigBed {params.bed1} ~/genome_size_UCSC_compatible_GRCh37.75.txt {output} -type=bed6+3
+        """
+
 rule get_bdg_FE:
     input : control = "09peak_macs2/{case}_vs_{control}_macs2_control_lambda.bdg", case = "09peak_macs2/{case}_vs_{control}_macs2_treat_pileup.bdg"
-    output : FE = temp("09peak_macs2/{case}_vs_{control}_FE.bdg")
+    output : FE = "09peak_macs2/{case}_vs_{control}_FE.bdg"
     shell:
         """
         source activate macs
@@ -332,12 +343,12 @@ rule get_bdg_FE:
         """
 
 rule get_bdg_LR:
-    input : treat="09peak_macs2/{case}_vs_{control}_macs2_control_lambda.bdg", control="09peak_macs2/{case}_vs_{control}_macs2_treat_pileup.bdg"
-    output : logLR = temp("09peak_macs2/{case}_vs_{control}_logLR.bdg")
+    input : control="09peak_macs2/{case}_vs_{control}_macs2_control_lambda.bdg", case ="09peak_macs2/{case}_vs_{control}_macs2_treat_pileup.bdg"
+    output : logLR = "09peak_macs2/{case}_vs_{control}_logLR.bdg"
     shell:
         """
         source activate macs
-        macs2 bdgcmp -t {input.treat} -c {input.control} -o {output.logLR} -m ppois -p 0.00001
+        macs2 bdgcmp -t {input.case} -c {input.control} -o {output.logLR} -m ppois -p 0.00001
         """
 ##Here bed graph are converted to bigwig. Before they are sorted and the chr is added for the UCSC browser
 rule get_bigwig_FE:
@@ -461,10 +472,3 @@ if config["chromHMM"]:
             """
             java {params.chromhmm} LearnModel -p 10 -b {config[binsize]} {input} {output} {config[state]} {config[chromHmm_g]} 2> {log.chromhmm_learn}
             """
-rule clean_gapped_peak_for_UCSC:
-    input: "09peak_macs2/{case}_vs_{control}_macs2_peaks.gappedPeak"
-    output: "12UCSC_gapped/{case}_vs_{control}_macs2_peaks.gappedPeak"
-    shell:
-        """
-        sed 's/^/chr/g' {input} | awk '{{$7=0;$8=0;print $0}}' | grep -v GL | grep -v CHR | grep -v HG > {output}
-        """
