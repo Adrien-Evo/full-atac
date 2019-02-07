@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 
-__author__ = 'tommy'
+__author__ = 'AF'
 
 # check the tutorial here https://pythonhosted.org/trackhub/tutorial.html
 # import the components we'll be using
@@ -13,8 +13,9 @@ import trackhub
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--hub_name", help="Required. the name of your track hub")
-parser.add_argument("--bw", nargs='+', help=" BigWig files to be added to the hub")
-parser.add_argument("--categories", nargs='+', help= "If provided, file names will be searched for pattern provided by this option. Then tracks will be aggregated based on those categories")
+parser.add_argument("--bw", nargs='+', help = "BigWig files to be added to the hub")
+parser.add_argument("--peaks", nargs = '+', help = "Called peaks in bed format")
+parser.add_argument("--categories", nargs='+', help= "TF or Histone marks. If provided, file names will be searched for pattern provided by this option. Then tracks will be aggregated based on those categories")
 parser.add_argument("--output_dir", help="the folder where the hub track files are generated, default is the same as input_dir", default=".")
 #parser.add_argument("--email", help="Required. your email to contact")
 #parser.add_argument("--composite_track_name", help="Required. the name of your composite track")
@@ -27,6 +28,28 @@ args = parser.parse_args()
 #assert args.email is not None, "please provide your email"
 #assert args.input_dir is not None, "please provide the path to the bigwig and bigbed files on your local computer"
 
+def subgroups_from_filename(fn):
+    """
+    This functions figures out subgroups based on the number in the
+    filename.  Subgroups provided to the Track() constructor is
+    a dictionary where keys are `name` attributes from the subgroups added
+    to the composite above, and values are keys of the `mapping` attribute
+    of that same subgroup.
+
+    Might be easier to cross-reference with the subgroups above, but an
+    example return value from this function would be::
+
+        {'s1': 'n', 'num': '2'}
+    """
+    if fn.endswith('bw'):
+        kind = 'signal'
+    else:
+        kind = 'peak'
+    track_subgroup = {
+        'File type': kind
+    }
+    return track_subgroup
+
 # First we initialize the components of a track hub
 hub, genomes_file, genome, trackdb = trackhub.default_hub(
     hub_name=args.hub_name,
@@ -35,6 +58,88 @@ hub, genomes_file, genome, trackdb = trackhub.default_hub(
     genome="hg19",
     email="dalerr@niddk.nih.gov")
 
+##Subgroup definition
+subgroups = [
+
+    trackhub.SubGroupDefinition(
+        name='File type',
+        label='File type',
+        mapping={
+            'signal': 'signal',
+            'peak': 'peak',
+        }
+    )
+]
+
+#####Composite track using the different subgroup
+composite = trackhub.CompositeTrack(
+    name='Composite',
+    short_label='Signal and regions',
+    # The available options for dimensions are the `name` attributes of
+    # each subgroup. Start with dimX and dimY (which become axes of the
+    # checkbox matrix to select tracks), and then dimA, dimB, etc.
+    dimensions='dimA=kind',
+
+    # This enables a drop-down box under the checkbox matrix that lets us
+    # select whatever dimA is (here, "kind").
+    filterComposite='dimA',
+
+    # The availalbe options here are the `name` attributes of each subgroup.
+    tracktype='bigWig',
+    visibility='full',
+)
+composite.add_subgroups(subgroups)
+trackdb.add_tracks(composite)
+# CompositeTracks compose different ViewTracks. We'll make one ViewTrack
+# for signal, and one for bigBed regions.
+signal_view = trackhub.ViewTrack(
+    name='signalviewtrack',
+    view='signal',
+    visibility='full',
+    tracktype='bigWig',
+    short_label='Signal')
+
+if args.peaks is not None:
+    regions_view = trackhub.ViewTrack(
+        name='regionsviewtrack',
+        view='regions',
+        visibility='dense',
+        tracktype='bigBed',
+        short_label='Regions')
+    composite.add_view(regions_view)
+
+
+# These need to be added to the composite.
+composite.add_view(signal_view)
+
+for bigwig in args.bw:
+    track = trackhub.Track(
+        name=trackhub.helpers.sanitize(os.path.basename(bigwig)),
+        source=bigwig,
+        visibility='full',
+        tracktype='bigWig',
+        viewLimits='-2:2',
+        maxHeightPixels='8:50:128',
+        subgroups=subgroups_from_filename(bigwig),
+    )
+    # Note that we add the track to the *view* rather than the trackDb as
+    # we did in the README example.
+    signal_view.add_tracks(track)
+
+# Same thing with the bigBeds. No overlay track to add these to, though.
+# Just to the regions_view ViewTrack.
+if args.peaks is not None:
+    for bigbed in args.peaks:
+        track = trackhub.Track(
+            name=trackhub.helpers.sanitize(os.path.basename(bigbed)),
+            source=bigbed,
+            tracktype='bigBed',
+            visibility='dense',
+            subgroups=subgroups_from_filename(bigbed),
+            )
+        regions_view.add_tracks(track)
+
+#####Super traxk with Aggregate track
 if args.categories is not None :
 #If there is more than 1 category, create a super track to hold all aggregate tracks
     if len(args.categories) > 1 :
@@ -69,7 +174,7 @@ if args.categories is not None :
         for bigwig in args.bw :
             if category_string in bigwig:
 
-                name = trackhub.helpers.sanitize(os.path.basename(bigwig))
+                name = trackhub.helpers.sanitize(os.path.basename(bigwig)) + 'agg'
                 track = trackhub.Track(
                     name=name,          # track names can't have any spaces or special chars.
                     source= bigwig,      # filename to build this track from
