@@ -13,6 +13,7 @@ import trackhub
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--hub_name", help="Required. the name of your track hub")
+parser.add_argument("--sample_name",nargs='+', help="Required. name of yout sample")
 parser.add_argument("--bw", nargs='+', help = "BigWig files to be added to the hub")
 parser.add_argument("--peaks", nargs = '+', help = "Called peaks in bed format")
 parser.add_argument("--categories", nargs='+', help= "TF or Histone marks. If provided, file names will be searched for pattern provided by this option. Then tracks will be aggregated based on those categories")
@@ -58,9 +59,13 @@ hub, genomes_file, genome, trackdb = trackhub.default_hub(
     genome="hg19",
     email="dalerr@niddk.nih.gov")
 
+# Sample subgroup
+
+dict_generator = {i: args.sample_name[i] for i in range(len(args.sample_name))}
+print(dict_generator)
 ##Subgroup definition
 subgroups = [
-
+    #File type subgroup
     trackhub.SubGroupDefinition(
         name='File type',
         label='File type',
@@ -68,9 +73,15 @@ subgroups = [
             'signal': 'signal',
             'peak': 'peak',
         }
+    ),
+    trackhub.SubGroupDefinition(
+        name='Sample Name',
+        label='Sample Name',
+        mapping=dict_generator
     )
 ]
 
+print(subgroups)
 #####Composite track using the different subgroup
 composite = trackhub.CompositeTrack(
     name='Composite',
@@ -88,6 +99,7 @@ composite = trackhub.CompositeTrack(
     tracktype='bigWig',
     visibility='full',
 )
+
 composite.add_subgroups(subgroups)
 trackdb.add_tracks(composite)
 # CompositeTracks compose different ViewTracks. We'll make one ViewTrack
@@ -139,7 +151,8 @@ if args.peaks is not None:
             )
         regions_view.add_tracks(track)
 
-#####Super traxk with Aggregate track
+
+#####Super tracks with Aggregate track
 if args.categories is not None :
 #If there is more than 1 category, create a super track to hold all aggregate tracks
     if len(args.categories) > 1 :
@@ -189,7 +202,7 @@ if args.categories is not None :
 
 
 
-print(trackdb)
+#print(trackdb)
 # In this example we "upload" the hub locally. Files are created in the
 # "example_hub" directory, along with symlinks to the tracks' data files.
 # This directory can then be pushed to GitHub or rsynced to a server.
