@@ -31,24 +31,31 @@ args = parser.parse_args()
 
 def subgroups_from_filename(fn):
     """
-    This functions figures out subgroups based on the number in the
-    filename.  Subgroups provided to the Track() constructor is
-    a dictionary where keys are `name` attributes from the subgroups added
-    to the composite above, and values are keys of the `mapping` attribute
-    of that same subgroup.
+    This functions figures out subgroups based on the filename and the provided 
+    sample_name, marks or TF name. Subgroups provided to the Track() constructor
+    is a dictionary where keys are `name` attributes from the subgroups added
+    to the composite track, and values are keys of the `mapping` attribute of 
+    that same subgroup.
 
-    Might be easier to cross-reference with the subgroups above, but an
-    example return value from this function would be::
-
-        {'s1': 'n', 'num': '2'}
+    An example return value from this function would be::
+        {'track': 'signal', 'samp': 'DC1077', 'cat' = 'H3K27'}
     """
-    if fn.endswith('bw'):
-        kind = 'signal'
+    track_subgroup = {}
+    #track based on extension
+    if fn.endswith('bw'.lower())  or fn.endswith('bigWig'.lower()) :
+        track_subgroup['track'] = 'signal'
     else:
-        kind = 'peak'
-    track_subgroup = {
-        'File type': kind
-    }
+        track_subgroup['track']= 'peak'
+
+    ##Checking the file name for the porivded samp
+    for sample_name in args.sample_name:
+        if sample_name in fn:
+            track_subgroup['samp'] = sample_name
+
+    for category in args.categories:
+        if category in fn:
+            track_subgroup['cat'] = category
+    print(track_subgroup)
     return track_subgroup
 
 # First we initialize the components of a track hub
@@ -61,27 +68,34 @@ hub, genomes_file, genome, trackdb = trackhub.default_hub(
 
 # Sample subgroup
 
-dict_generator = {i: args.sample_name[i] for i in range(len(args.sample_name))}
-print(dict_generator)
+dict_sample_name = {args.sample_name[i]: args.sample_name[i] for i in range(len(args.sample_name))}
+dict_categories = {args.categories[i]: args.categories[i] for i in range(len(args.categories))}
+print(dict_sample_name)
+print(dict_categories)
+
 ##Subgroup definition
 subgroups = [
-    #File type subgroup
+    #track subgroup
     trackhub.SubGroupDefinition(
-        name='File type',
-        label='File type',
+        name='track',
+        label='File_Type',
         mapping={
             'signal': 'signal',
             'peak': 'peak',
         }
     ),
     trackhub.SubGroupDefinition(
-        name='Sample Name',
-        label='Sample Name',
-        mapping=dict_generator
+        name='samp',
+        label='Sample_Name',
+        mapping=dict_sample_name
+    ),
+    trackhub.SubGroupDefinition(
+        name='cat',
+        label='Categories',
+        mapping=dict_categories
     )
 ]
 
-print(subgroups)
 #####Composite track using the different subgroup
 composite = trackhub.CompositeTrack(
     name='Composite',
@@ -89,12 +103,12 @@ composite = trackhub.CompositeTrack(
     # The available options for dimensions are the `name` attributes of
     # each subgroup. Start with dimX and dimY (which become axes of the
     # checkbox matrix to select tracks), and then dimA, dimB, etc.
-    dimensions='dimA=kind',
-
+    dimensions='dimX=samp dimY=cat dimA=track',
     # This enables a drop-down box under the checkbox matrix that lets us
     # select whatever dimA is (here, "kind").
     filterComposite='dimA',
 
+    sortOrder='samp=+ cat=- track=+',
     # The availalbe options here are the `name` attributes of each subgroup.
     tracktype='bigWig',
     visibility='full',
@@ -114,10 +128,10 @@ signal_view = trackhub.ViewTrack(
 if args.peaks is not None:
     regions_view = trackhub.ViewTrack(
         name='regionsviewtrack',
-        view='regions',
+        view='peak',
         visibility='dense',
-        tracktype='bigBed',
-        short_label='Regions')
+        tracktype='bigWig',
+        short_label='Peaks')
     composite.add_view(regions_view)
 
 
@@ -130,7 +144,7 @@ for bigwig in args.bw:
         source=bigwig,
         visibility='full',
         tracktype='bigWig',
-        viewLimits='-2:2',
+        viewLimits='-4:4',
         maxHeightPixels='8:50:128',
         subgroups=subgroups_from_filename(bigwig),
     )
@@ -157,8 +171,8 @@ if args.categories is not None :
 #If there is more than 1 category, create a super track to hold all aggregate tracks
     if len(args.categories) > 1 :
         supertrack = trackhub.SuperTrack(
-        name = 'SuperTrack',
-        short_label = 'SuperTrack'
+        name = 'AggregatedCategories',
+        short_label = 'Aggregated_Marks_or_TF'
         )
         trackdb.add_tracks(supertrack)
 
