@@ -63,6 +63,7 @@ ALL_BIGWIGFE = []
 ALL_BIGWIGLR = []
 ALL_BIGWIGUCSC = []
 ALL_COMPUTEMATRIX = []
+ALL_PLOTS = []
 
 for case in CASES:
     sample = "_".join(case.split("_")[0:-1])
@@ -91,10 +92,10 @@ ALL_DOWNSAMPLE_INDEX = expand("04aln_downsample/{sample}-downsample.sorted.bam.b
 ALL_FLAGSTAT = expand("03aln/{sample}.sorted.bam.flagstat", sample = ALL_SAMPLES)
 ALL_PHATOM = expand("05phantompeakqual/{sample}.spp.out", sample = ALL_SAMPLES)
 ALL_BIGWIG = expand("07bigwig/{sample}.bw", sample = ALL_SAMPLES)
-ALL_COMPUTEMATRIX = expand("DPQC/{marks}.computeMatrix.gz", marks = MARKS)
+ALL_COMPUTEMATRIX = expand("DPQC/{mark}.computeMatrix.gz", mark = MARKS)
+ALL_PLOTS = expand("DPQC/{mark}.plotHeatmap.png", mark = MARKS)
 ALL_QC = ["10multiQC/multiQC_log.html"]
 
-print(ALL_COMPUTEMATRIX)
 
 
 TARGETS = []
@@ -117,6 +118,8 @@ TARGETS.extend(ALL_BIGWIGFE)
 TARGETS.extend(ALL_BIGWIGLR)
 TARGETS.extend(ALL_BIGWIGUCSC)
 TARGETS.extend(ALL_COMPUTEMATRIX)
+TARGETS.extend(ALL_PLOTS)
+
 
 
 
@@ -282,9 +285,18 @@ rule make_bigwigs:
 rule computeMatrix_QC:
     input : getBigWigWithMarkorTF 
     output : "DPQC/{mark}.computeMatrix.gz"
+    params : TSS_BED
     shell:
         """
-        echo {input} {output}
+        computeMatrix reference-point -S {input} -R TSS_BED -a 3000 -b 3000 -out {output}
+        """
+
+rule plotHeatmap:
+    input :  "DPQC/{mark}.computeMatrix.gz"
+    output : "DPQC/{mark}.plotHeatmap.png"
+    shell:
+        """
+        plotHeatmap -m {input} -out {output}
         """
 
 rule get_UCSC_bigwig:
