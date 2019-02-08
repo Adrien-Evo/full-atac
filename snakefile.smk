@@ -15,6 +15,7 @@ CLUSTER = json.load(open(config['CLUSTER_JSON']))
 FILES = json.load(open(config['SAMPLES_JSON']))
 ROSE_FOLDER = config['rose_folder']
 TSS_BED = config['tss_bed']
+WORKDIR = os.path.abspath(config["OUTPUT_DIR"])
 
 ## list all samples by sample_name and sample_type (sampleName_MARK is the basis of most of this pipeline atm)
 MARK_SAMPLES = []
@@ -47,7 +48,7 @@ def getBigWigWithMarkorTF(wildcards):
     samples = MARKS[wildcards.mark]
     bigwigs = list()
     for s in samples:
-        bigwigs.append("07bigwig/"+s+"_"+wildcards.mark+".bw")
+        bigwigs.append(os.path.join(WORKDIR,"07bigwig/"+s+"_"+wildcards.mark+".bw"))
     return bigwigs
 
 ##Aggregation of bams per sample
@@ -56,7 +57,7 @@ def getBamsperSample(wildcards):
     marks = SAMPLES[wildcards.samp]
     bams = list()
     for s in marks:
-        bams.append("03aln/"+wildcards.samp+"_"+s+".sorted.bam")
+        bams.append(os.path.join(WORKDIR,"03aln/"+wildcards.samp+"_"+s+".sorted.bam"))
     return bams
 
 ##Aggregation of bam index per sample, necessary to avoid lanching without bai
@@ -64,7 +65,7 @@ def getBaisperSample(wildcards):
     marks = SAMPLES[wildcards.samp]
     bais = list()
     for s in marks:
-        bais.append("03aln/"+s+"_"+wildcards.samp+".sorted.bam.bai")
+        bais.append(os.path.join(WORKDIR,"03aln/"+s+"_"+wildcards.samp+".sorted.bam.bai"))
     return bais
 
 # which sample_type is used as control for calling peaks: e.g. Input, IgG...
@@ -77,8 +78,8 @@ CONTROLS_UNIQUE = list(set(CONTROLS))
 
 
 ## list BAM files
-CONTROL_BAM = expand("03aln/{sample}.sorted.bam", sample=CONTROLS_UNIQUE)
-CASE_BAM = expand("03aln/{sample}.sorted.bam", sample=CASES)
+CONTROL_BAM = expand(os.path.join(WORKDIR,"03aln/{sample}.sorted.bam"), sample=CONTROLS_UNIQUE)
+CASE_BAM = expand(os.path.join(WORKDIR,"03aln/{sample}.sorted.bam"), sample=CASES)
 
 ## peaks and bigwigs
 ALL_PEAKS = []
@@ -97,32 +98,32 @@ for case in CASES:
     sample = "_".join(case.split("_")[0:-1])
     control = sample + "_" + CONTROL
     if control in CONTROLS:
-        ALL_PEAKS.append("08peak_macs1/{}_vs_{}_macs1_peaks.bed".format(case, control))
-        ALL_PEAKS.append("08peak_macs1/{}_vs_{}_macs1_nomodel_peaks.bed".format(case, control))
-        ALL_PEAKS.append("09peak_macs2/{}_vs_{}_macs2_peaks.xls".format(case, control))
-        ALL_inputSubtract_BIGWIG.append("06bigwig_inputSubtract/{}_subtract_{}.bw".format(case, control))
-        ALL_SUPER.append("11superEnhancer/{}_vs_{}-super/".format(case, control))
-        ALL_BROADPEAK.append("12UCSC_broad/{}_vs_{}_macs2_peaks.broadPeak".format(case, control))
-        ALL_BDGControl.append("09peak_macs2/{}_vs_{}_macs2_control_lambda.bdg".format(case, control))
-        ALL_BDGtreat.append("09peak_macs2/{}_vs_{}_macs2_treat_pileup.bdg".format(case, control))
-        ALL_BIGWIGFE.append("09peak_macs2/{}_vs_{}_FE.bw".format(case, control))
-        ALL_BIGWIGLR.append("09peak_macs2/{}_vs_{}_logLR.bw".format(case, control))
-        ALL_BIGWIGUCSC.append("UCSC_compatible_bigWig/{}_subtract_{}.bw".format(case,control))
+        ALL_PEAKS.append(os.path.join(WORKDIR,"08peak_macs1/{}_vs_{}_macs1_peaks.bed").format(case, control))
+        ALL_PEAKS.append(os.path.join(WORKDIR,"08peak_macs1/{}_vs_{}_macs1_nomodel_peaks.bed").format(case, control))
+        ALL_PEAKS.append(os.path.join(WORKDIR,"09peak_macs2/{}_vs_{}_macs2_peaks.xls").format(case, control))
+        ALL_inputSubtract_BIGWIG.append(os.path.join(WORKDIR,"06bigwig_inputSubtract/{}_subtract_{}.bw").format(case, control))
+        ALL_SUPER.append(os.path.join(WORKDIR,"11superEnhancer/{}_vs_{}-super/").format(case, control))
+        ALL_BROADPEAK.append(os.path.join(WORKDIR,"12UCSC_broad/{}_vs_{}_macs2_peaks.broadPeak").format(case, control))
+        ALL_BDGControl.append(os.path.join(WORKDIR,"09peak_macs2/{}_vs_{}_macs2_control_lambda.bdg").format(case, control))
+        ALL_BDGtreat.append(os.path.join(WORKDIR,"09peak_macs2/{}_vs_{}_macs2_treat_pileup.bdg").format(case, control))
+        ALL_BIGWIGFE.append(os.path.join(WORKDIR,"09peak_macs2/{}_vs_{}_FE.bw").format(case, control))
+        ALL_BIGWIGLR.append(os.path.join(WORKDIR,"09peak_macs2/{}_vs_{}_logLR.bw").format(case, control))
+        ALL_BIGWIGUCSC.append(os.path.join(WORKDIR,"UCSC_compatible_bigWig/{}_subtract_{}.bw").format(case,control))
 
 
 ALL_SAMPLES = CASES + CONTROLS_UNIQUE
 ALL_BAM     = CONTROL_BAM + CASE_BAM
-ALL_DOWNSAMPLE_BAM = expand("04aln_downsample/{sample}-downsample.sorted.bam", sample = ALL_SAMPLES)
-ALL_FASTQ   = expand("01seq/{sample}.fastq", sample = ALL_SAMPLES)
-ALL_FASTQC  = expand("02fqc/{sample}_fastqc.zip", sample = ALL_SAMPLES)
-ALL_INDEX = expand("03aln/{sample}.sorted.bam.bai", sample = ALL_SAMPLES)
-ALL_DOWNSAMPLE_INDEX = expand("04aln_downsample/{sample}-downsample.sorted.bam.bai", sample = ALL_SAMPLES)
-ALL_FLAGSTAT = expand("03aln/{sample}.sorted.bam.flagstat", sample = ALL_SAMPLES)
-ALL_PHATOM = expand("05phantompeakqual/{sample}.spp.out", sample = ALL_SAMPLES)
-ALL_BIGWIG = expand("07bigwig/{sample}.bw", sample = ALL_SAMPLES)
-ALL_COMPUTEMATRIX = expand("DPQC/{mark}.computeMatrix.gz", mark = MARKS)
-ALL_PLOTS = expand("DPQC/{mark}.plotHeatmap.png", mark = MARKS)
-ALL_PLOTS.extend(expand("DPQC/{samp}.fingerprint.png",samp = SAMPLES))
+ALL_DOWNSAMPLE_BAM = expand(os.path.join(WORKDIR,"04aln_downsample/{sample}-downsample.sorted.bam"), sample = ALL_SAMPLES)
+ALL_FASTQ   = expand(os.path.join(WORKDIR,"01seq/{sample}.fastq"), sample = ALL_SAMPLES)
+ALL_FASTQC  = expand(os.path.join(WORKDIR,"02fqc/{sample}_fastqc.zip"), sample = ALL_SAMPLES)
+ALL_INDEX = expand(os.path.join(WORKDIR,"03aln/{sample}.sorted.bam.bai"), sample = ALL_SAMPLES)
+ALL_DOWNSAMPLE_INDEX = expand(os.path.join(WORKDIR,"04aln_downsample/{sample}-downsample.sorted.bam.bai"), sample = ALL_SAMPLES)
+ALL_FLAGSTAT = expand(os.path.join(WORKDIR,"03aln/{sample}.sorted.bam.flagstat"), sample = ALL_SAMPLES)
+ALL_PHATOM = expand(os.path.join(WORKDIR,"05phantompeakqual/{sample}.spp.out"), sample = ALL_SAMPLES)
+ALL_BIGWIG = expand(os.path.join(WORKDIR,"07bigwig/{sample}.bw"), sample = ALL_SAMPLES)
+ALL_COMPUTEMATRIX = expand(os.path.join(WORKDIR,"DPQC/{mark}.computeMatrix.gz"), mark = MARKS)
+ALL_PLOTS = expand(os.path.join(WORKDIR,"DPQC/{mark}.plotHeatmap.png"), mark = MARKS)
+ALL_PLOTS.extend(expand(os.path.join(WORKDIR,"DPQC/{samp}.fingerprint.png"),samp = SAMPLES))
 ALL_QC = ["10multiQC/multiQC_log.html"]
 
 
@@ -151,7 +152,6 @@ TARGETS.extend(ALL_PLOTS)
 
 
 
-print(TARGETS)
 
 ## sometimes if if you have TF ChIP-seq data, do not include it to chromHMM, or you want
 ## only a subset of the histone marks be included in the chromHMM call
@@ -159,9 +159,9 @@ print(TARGETS)
 if config["chromHMM"]:
     HISTONE_INCLUDED = config["histone_for_chromHMM"].split(" ")
     HISTONE_CASES = [sample for sample in MARK_SAMPLES if sample.split("_")[-1] in HISTONE_INCLUDED ]
-    ALL_BED = expand("12bed/{sample}.bed", sample = HISTONE_CASES + CONTROLS)
-    CHROMHMM = ["13chromHMM/MYOUTPUT", "13chromHMM/binarizedData"]
-    CHROMHMM_TABLE = ["12bed/cellmarkfiletable.txt"]
+    ALL_BED = expand(os.path.join(WORKDIR,"12bed/{sample}.bed"), sample = HISTONE_CASES + CONTROLS)
+    CHROMHMM = [os.path.join(WORKDIR,"13chromHMM/MYOUTPUT"), os.path.join(WORKDIR,"13chromHMM/binarizedData")]
+    CHROMHMM_TABLE = [os.path.join(WORKDIR,"12bed/cellmarkfiletable.txt")]
     TARGETS.extend(ALL_BED)
     TARGETS.extend(CHROMHMM)
     TARGETS.extend(CHROMHMM_TABLE)
@@ -174,26 +174,24 @@ rule all:
 
 ## get a list of fastq.gz files for the same mark, same sample
 def get_fastq(wildcards):
-    #print(wildcards)
     sample = "_".join(wildcards.sample.split("_")[0:-1])
     mark = wildcards.sample.split("_")[-1]
-    #print(sample,mark)
     return FILES[sample][mark]
 
 ## now only for single-end ChIPseq,
 rule merge_fastqs:
     input: get_fastq
-    output: temp("01seq/{sample}.fastq")
-    log: "00log/{sample}_unzip"
+    output: os.path.join(WORKDIR,"01seq/{sample}.fastq")
+    log: os.path.join(WORKDIR,"00log/{sample}_unzip")
     threads: CLUSTER["merge_fastqs"]["cpu"]
     params: jobname = "{sample}"
     message: "merging fastqs gunzip -c {input} > {output}"
     shell: "gunzip -c {input} > {output} 2> {log}"
 
 rule fastqc:
-    input:  "01seq/{sample}.fastq"
-    output: "02fqc/{sample}_fastqc.zip", "02fqc/{sample}_fastqc.html"
-    log:    "00log/{sample}_fastqc"
+    input:  os.path.join(WORKDIR,"01seq/{sample}.fastq")
+    output: os.path.join(WORKDIR,"02fqc/{sample}_fastqc.zip"), os.path.join(WORKDIR,"02fqc/{sample}_fastqc.html")
+    log:    os.path.join(WORKDIR,"00log/{sample}_fastqc")
     threads: CLUSTER["fastqc"]["cpu"]
     params : jobname = "{sample}"
     message: "fastqc {input}: {threads}"
@@ -205,16 +203,16 @@ rule fastqc:
 # get the duplicates marked sorted bam, remove unmapped reads by samtools view -F 4 and dupliated reads by samblaster -r
 # samblaster should run before samtools sort
 rule align:
-    input:  "01seq/{sample}.fastq"
-    output: "03aln/{sample}.sorted.bam", "00log/{sample}.align"
+    input:  os.path.join(WORKDIR,"01seq/{sample}.fastq")
+    output: os.path.join(WORKDIR,"03aln/{sample}.sorted.bam"), os.path.join(WORKDIR,"00log/{sample}.align")
     threads: CLUSTER["align"]["cpu"]
     params:
         bowtie = "--chunkmbs 320 -m 1 --best -p 5 ",
         jobname = "{sample}"
     message: "aligning {input}: 16 threads"
     log:
-        bowtie = "00log/{sample}.align",
-        markdup = "00log/{sample}.markdup"
+        bowtie = os.path.join(WORKDIR,"00log/{sample}.align"),
+        markdup = os.path.join(WORKDIR,"00log/{sample}.markdup")
     shell:
         """
         bowtie2 -p 16 -x {config[idx_bt1]} -q {input} 2> {log.bowtie} \
@@ -224,9 +222,9 @@ rule align:
     """
 
 rule index_bam:
-    input:  "03aln/{sample}.sorted.bam"
-    output: "03aln/{sample}.sorted.bam.bai"
-    log:    "00log/{sample}.index_bam"
+    input:  os.path.join(WORKDIR,"03aln/{sample}.sorted.bam")
+    output: os.path.join(WORKDIR,"03aln/{sample}.sorted.bam.bai")
+    log:    os.path.join(WORKDIR,"00log/{sample}.index_bam")
     threads: 1
     params: jobname = "{sample}"
     message: "index_bam {input}: {threads} threads"
@@ -237,9 +235,9 @@ rule index_bam:
 
 # check number of reads mapped by samtools flagstat, the output will be used for downsampling
 rule flagstat_bam:
-    input:  "03aln/{sample}.sorted.bam"
-    output: "03aln/{sample}.sorted.bam.flagstat"
-    log:    "00log/{sample}.flagstat_bam"
+    input:  os.path.join(WORKDIR,"03aln/{sample}.sorted.bam")
+    output: os.path.join(WORKDIR,"03aln/{sample}.sorted.bam.flagstat")
+    log:    os.path.join(WORKDIR,"00log/{sample}.flagstat_bam")
     threads: 1
     params: jobname = "{sample}"
     message: "flagstat_bam {input}: {threads} threads"
@@ -250,29 +248,29 @@ rule flagstat_bam:
    
 rule plotFingerPrint:
     input: getBamsperSample
-    output: "DPQC/{samp}.fingerprint.png"
-    params: "DPQC/{samp}.rawcount.tab"
+    output: os.path.join(WORKDIR,"DPQC/{samp}.fingerprint.png")
+    params: os.path.join(WORKDIR,"DPQC/{samp}.rawcount.tab")
     shell:
         """
         Fingerprint -b {input[0]} --plotFile {output} --outRawCounts {params}
         """
 
 rule phantom_peak_qual:
-    input: "03aln/{sample}.sorted.bam", "03aln/{sample}.sorted.bam.bai"
-    output: "05phantompeakqual/{sample}.spp.out"
-    log: "00log/{sample}_phantompeakqual.log"
+    input: os.path.join(WORKDIR,"03aln/{sample}.sorted.bam"), os.path.join(WORKDIR,"03aln/{sample}.sorted.bam.bai")
+    output: os.path.join(WORKDIR,"05phantompeakqual/{sample}.spp.out")
+    log: os.path.join(WORKDIR,"00log/{sample}_phantompeakqual.log")
     threads: 4
-    params: jobname = "{sample}"
+    params: os.path.join(WORKDIR,"05phantompeakqual/")
     message: "phantompeakqual for {input}"
     shell:
         """
-        run_spp.R -c={input[0]} -savp -rf -p=4 -odir=05phantompeakqual  -out={output} -tmpdir=05phantompeakqual 2> {log}
+        run_spp.R -c={input[0]} -savp -rf -p=4 -odir={params}  -out={output} -tmpdir={params} 2> {log}
         """
 
 rule down_sample:
-    input: "03aln/{sample}.sorted.bam", "03aln/{sample}.sorted.bam.bai", "03aln/{sample}.sorted.bam.flagstat"
-    output: "04aln_downsample/{sample}-downsample.sorted.bam", "04aln_downsample/{sample}-downsample.sorted.bam.bai"
-    log: "00log/{sample}_downsample.log"
+    input: os.path.join(WORKDIR,"03aln/{sample}.sorted.bam"), os.path.join(WORKDIR,"03aln/{sample}.sorted.bam.bai"), os.path.join("03aln/{sample}.sorted.bam.flagstat")
+    output: os.path.join(WORKDIR,"04aln_downsample/{sample}-downsample.sorted.bam"), os.path.join(WORKDIR,"04aln_downsample/{sample}-downsample.sorted.bam.bai")
+    log: os.path.join(WORKDIR,"00log/{sample}_downsample.log")
     threads: 5
     params: jobname = "{sample}"
     message: "downsampling for {input}"
@@ -297,10 +295,10 @@ rule down_sample:
 
 rule make_inputSubtract_bigwigs:
     input : 
-        control = "04aln_downsample/{control}-downsample.sorted.bam",
-        case =  "04aln_downsample/{case}-downsample.sorted.bam"
-    output:  "06bigwig_inputSubtract/{case}_subtract_{control}.bw"
-    log: "00log/{case}_{control}inputSubtract.makebw"
+        control = os.path.join(WORKDIR,"04aln_downsample/{control}-downsample.sorted.bam"),
+        case =  os.path.join(WORKDIR,"04aln_downsample/{case}-downsample.sorted.bam")
+    output:  os.path.join(WORKDIR,"06bigwig_inputSubtract/{case}_subtract_{control}.bw")
+    log: os.path.join(WORKDIR,"00log/{case}_{control}inputSubtract.makebw")
     threads: 5
     params: jobname = "{case}"
     message: "making input subtracted bigwig for {input}"
@@ -310,8 +308,8 @@ rule make_inputSubtract_bigwigs:
         """
 
 rule make_bigwigs:
-    input : "04aln_downsample/{sample}-downsample.sorted.bam", "04aln_downsample/{sample}-downsample.sorted.bam.bai"
-    output: "07bigwig/{sample}.bw"
+    input : os.path.join(WORKDIR,"04aln_downsample/{sample}-downsample.sorted.bam"), os.path.join(WORKDIR,"04aln_downsample/{sample}-downsample.sorted.bam.bai")
+    output: os.path.join(WORKDIR,"07bigwig/{sample}.bw")
     log: "00log/{sample}.makebw"
     threads: 5
     params: jobname = "{sample}"
@@ -323,7 +321,7 @@ rule make_bigwigs:
 
 rule computeMatrix_QC:
     input : getBigWigWithMarkorTF 
-    output : "DPQC/{mark}.computeMatrix.gz"
+    output : os.path.join(WORKDIR,"DPQC/{mark}.computeMatrix.gz")
     params : TSS_BED
     shell:
         """
@@ -331,19 +329,19 @@ rule computeMatrix_QC:
         """
 
 rule plotHeatmap:
-    input :  "DPQC/{mark}.computeMatrix.gz"
-    output : "DPQC/{mark}.plotHeatmap.png"
+    input :  os.path.join(WORKDIR,"DPQC/{mark}.computeMatrix.gz")
+    output : os.path.join(WORKDIR,"DPQC/{mark}.plotHeatmap.png")
     shell:
         """
         plotHeatmap -m {input} -out {output}
         """
 
 rule get_UCSC_bigwig:
-    input : "06bigwig_inputSubtract/{case}_subtract_{control}.bw"
-    output : "UCSC_compatible_bigWig/{case}_subtract_{control}.bw"
+    input : os.path.join(WORKDIR,"06bigwig_inputSubtract/{case}_subtract_{control}.bw")
+    output : os.path.join(WORKDIR,"UCSC_compatible_bigWig/{case}_subtract_{control}.bw")
     params : 
-        wig1 = "06bigwig_inputSubtract/{case}_subtract_{control}_temp.wig",
-        wig2 = "06bigwig_inputSubtract/{case}_subtract_{control}_temp2.wig"
+        wig1 = os.path.join(WORKDIR,"06bigwig_inputSubtract/{case}_subtract_{control}_temp.wig"),
+        wig2 = os.path.join(WORKDIR,"06bigwig_inputSubtract/{case}_subtract_{control}_temp2.wig")
     shell:
         """
         ./bigWigToWig {input} {params.wig1}
@@ -352,11 +350,13 @@ rule get_UCSC_bigwig:
         """
 
 rule call_peaks_macs1:
-    input: control = "04aln_downsample/{control}-downsample.sorted.bam", case="04aln_downsample/{case}-downsample.sorted.bam"
-    output: "08peak_macs1/{case}_vs_{control}_macs1_peaks.bed", "08peak_macs1/{case}_vs_{control}_macs1_nomodel_peaks.bed"
+    input: 
+        control = os.path.join(WORKDIR,"04aln_downsample/{control}-downsample.sorted.bam"),
+        case = os.path.join(WORKDIR,"04aln_downsample/{case}-downsample.sorted.bam")
+    output: os.path.join(WORKDIR,"08peak_macs1/{case}_vs_{control}_macs1_peaks.bed"), os.path.join(WORKDIR,"08peak_macs1/{case}_vs_{control}_macs1_nomodel_peaks.bed")
     log:
-        macs1 = "00log/{case}_vs_{control}_call_peaks_macs1.log",
-        macs1_nomodel = "00log/{case}_vs_{control}_call_peaks_macs1_nomodel.log"
+        macs1 = os.path.join(WORKDIR,"00log/{case}_vs_{control}_call_peaks_macs1.log"),
+        macs1_nomodel = os.path.join(WORKDIR,"00log/{case}_vs_{control}_call_peaks_macs1_nomodel.log")
     params:
         name1 = "{case}_vs_{control}_macs1",
         name2 = "{case}_vs_{control}_macs1_nomodel",
@@ -378,13 +378,15 @@ rule call_peaks_macs1:
         
 
 rule call_peaks_macs2:
-    input: control = "04aln_downsample/{control}-downsample.sorted.bam", case="04aln_downsample/{case}-downsample.sorted.bam"
+    input: 
+        control = os.path.join(WORKDIR,"04aln_downsample/{control}-downsample.sorted.bam"),
+        case = os.path.join(WORKDIR,"04aln_downsample/{case}-downsample.sorted.bam")
     output:
-        bed = "09peak_macs2/{case}_vs_{control}_macs2_peaks.xls",
-        broad = "09peak_macs2/{case}_vs_{control}_macs2_peaks.broadPeak",
-        control = temp("09peak_macs2/{case}_vs_{control}_macs2_control_lambda.bdg"),
-        treat = temp("09peak_macs2/{case}_vs_{control}_macs2_treat_pileup.bdg")
-    log: "00log/{case}_vs_{control}_call_peaks_macs2.log"
+        bed = os.path.join(WORKDIR,"09peak_macs2/{case}_vs_{control}_macs2_peaks.xls"),
+        broad = os.path.join(WORKDIR,"09peak_macs2/{case}_vs_{control}_macs2_peaks.broadPeak"),
+        control = temp(os.path.join(WORKDIR,"09peak_macs2/{case}_vs_{control}_macs2_control_lambda.bdg")),
+        treat = temp(os.path.join(WORKDIR,"09peak_macs2/{case}_vs_{control}_macs2_treat_pileup.bdg"))
+    log: os.path.join(WORKDIR,"00log/{case}_vs_{control}_call_peaks_macs2.log")
     params:
         name = "{case}_vs_{control}_macs2",
         jobname = "{case}"
@@ -400,10 +402,10 @@ rule call_peaks_macs2:
 
 #Cleaning broadGapped peak by adding "chr" on chr, sorting, setting score > 1000 to 1000 with awk then converting to bigbed
 rule get_UCSC_bigBed:
-    input: "09peak_macs2/{case}_vs_{control}_macs2_peaks.broadPeak"
-    output: "12UCSC_broad/{case}_vs_{control}_macs2_peaks.broadPeak"
+    input: os.path.join(WORKDIR,"09peak_macs2/{case}_vs_{control}_macs2_peaks.broadPeak")
+    output: os.path.join(WORKDIR,"12UCSC_broad/{case}_vs_{control}_macs2_peaks.broadPeak")
     params : 
-        bed1 = temp("12UCSC_broad/{case}_vs_{control}_macs2_peaks.bed")
+        bed1 = temp(os.path.join(WORKDIR,"12UCSC_broad/{case}_vs_{control}_macs2_peaks.bed"))
     shell:
         """
         sed -r 's/^[0-9]|^X|^Y|^MT/chr&/g' {input} | LC_COLLATE=C sort -k1,1 -k2,2n | awk '{{if($5 > 1000) $5 = 1000}}; {{print $0}}' > {params.bed1}
@@ -411,8 +413,11 @@ rule get_UCSC_bigBed:
         """
 
 rule get_bdg_FE:
-    input : control = "09peak_macs2/{case}_vs_{control}_macs2_control_lambda.bdg", case = "09peak_macs2/{case}_vs_{control}_macs2_treat_pileup.bdg"
-    output : FE = "09peak_macs2/{case}_vs_{control}_FE.bdg"
+    input : 
+        control = os.path.join(WORKDIR,"09peak_macs2/{case}_vs_{control}_macs2_control_lambda.bdg"),
+        case = os.path.join(WORKDIR,"09peak_macs2/{case}_vs_{control}_macs2_treat_pileup.bdg")
+    output : 
+        FE = os.path.join(WORKDIR,"09peak_macs2/{case}_vs_{control}_FE.bdg")
     shell:
         """
         source activate macs
@@ -420,8 +425,10 @@ rule get_bdg_FE:
         """
 
 rule get_bdg_LR:
-    input : control="09peak_macs2/{case}_vs_{control}_macs2_control_lambda.bdg", case ="09peak_macs2/{case}_vs_{control}_macs2_treat_pileup.bdg"
-    output : logLR = "09peak_macs2/{case}_vs_{control}_logLR.bdg"
+    input : 
+        control = os.path.join(WORKDIR,"09peak_macs2/{case}_vs_{control}_macs2_control_lambda.bdg"), 
+        case = os.path.join(WORKDIR,"09peak_macs2/{case}_vs_{control}_macs2_treat_pileup.bdg")
+    output : logLR = os.path.join(WORKDIR,"09peak_macs2/{case}_vs_{control}_logLR.bdg")
     shell:
         """
         source activate macs
@@ -430,11 +437,11 @@ rule get_bdg_LR:
 ##Here bed graph are converted to bigwig. Before they are sorted and the chr is added for the UCSC browser
 rule get_bigwig_FE:
     input : 
-        FE = "09peak_macs2/{case}_vs_{control}_FE.bdg",
+        FE = os.path.join(WORKDIR,"09peak_macs2/{case}_vs_{control}_FE.bdg")
     output : 
-        FE = "09peak_macs2/{case}_vs_{control}_FE.bw",
+        FE = os.path.join(WORKDIR,"09peak_macs2/{case}_vs_{control}_FE.bw")
     params :
-        tempFE = temp("09peak_macs2/{case}_vs_{control}_FE.temp")
+        tempFE = temp(os.path.join(WORKDIR,"09peak_macs2/{case}_vs_{control}_FE.temp"))
     shell:
         """
         sed -r 's/^[0-9]|^X|^Y|^MT/chr&/g' {input.FE} | LC_COLLATE=C sort -k1,1 -k2,2n > {params.tempFE}
@@ -443,11 +450,11 @@ rule get_bigwig_FE:
 
 rule get_bigwig_LR:
     input : 
-        logLR = "09peak_macs2/{case}_vs_{control}_logLR.bdg"
+        logLR = os.path.join(WORKDIR,"09peak_macs2/{case}_vs_{control}_logLR.bdg")
     output : 
-        logLR = "09peak_macs2/{case}_vs_{control}_logLR.bw"
+        logLR = os.path.join(WORKDIR,"09peak_macs2/{case}_vs_{control}_logLR.bw")
     params :
-        tempLR = temp("09peak_macs2/{case}_vs_{control}_logLR.temp")
+        tempLR = temp(os.path.join(WORKDIR,"09peak_macs2/{case}_vs_{control}_logLR.temp"))
     shell:
         """
         sed 's/^/chr/g' {input.logLR} | LC_COLLATE=C sort -k1,1 -k2,2n > {params.tempLR}
@@ -456,12 +463,12 @@ rule get_bigwig_LR:
 
 rule multiQC:
     input :
-        expand("00log/{sample}.align", sample = ALL_SAMPLES),
-        expand("03aln/{sample}.sorted.bam.flagstat", sample = ALL_SAMPLES),
-        expand("02fqc/{sample}_fastqc.zip", sample = ALL_SAMPLES),
-        expand("05phantompeakqual/{sample}.spp.out", sample = ALL_SAMPLES)
-    output: "10multiQC/multiQC_log.html"
-    log: "00log/multiqc.log"
+        expand(os.path.join(WORKDIR,"00log/{sample}.align"), sample = ALL_SAMPLES),
+        expand(os.path.join(WORKDIR,"03aln/{sample}.sorted.bam.flagstat"), sample = ALL_SAMPLES),
+        expand(os.path.join(WORKDIR,"02fqc/{sample}_fastqc.zip"), sample = ALL_SAMPLES),
+        expand(os.path.join(WORKDIR,"05phantompeakqual/{sample}.spp.out"), sample = ALL_SAMPLES)
+    output: os.path.join(WORKDIR,"10multiQC/multiQC_log.html")
+    log: os.path.join(WORKDIR,"00log/multiqc.log")
     message: "multiqc for all logs"
     shell:
         """
@@ -471,11 +478,14 @@ rule multiQC:
 ## ROSE has to be run inside the folder where ROSE_main.py resides.
 ## symbolic link the rose folder to the snakefile folder can be one alternative solution.
 rule superEnhancer:
-    input : "04aln_downsample/{control}-downsample.sorted.bam", "04aln_downsample/{case}-downsample.sorted.bam",
-            "04aln_downsample/{control}-downsample.sorted.bam.bai", "04aln_downsample/{case}-downsample.sorted.bam.bai",
-            "08peak_macs1/{case}_vs_{control}_macs1_peaks.bed"
-    output: directory("11superEnhancer/{case}_vs_{control}-super/")
-    log: "00log/{case}_{control}superEnhancer.log"
+    input : 
+        os.path.join(WORKDIR,"04aln_downsample/{control}-downsample.sorted.bam"), 
+        os.path.join(WORKDIR,"04aln_downsample/{case}-downsample.sorted.bam"),
+        os.path.join(WORKDIR,"04aln_downsample/{control}-downsample.sorted.bam.bai"),
+        os.path.join(WORKDIR,"04aln_downsample/{case}-downsample.sorted.bam.bai"),
+        os.path.join(WORKDIR,"08peak_macs1/{case}_vs_{control}_macs1_peaks.bed")
+    output: directory(os.path.join(WORKDIR,"11superEnhancer/{case}_vs_{control}-super/"))
+    log: os.path.join(WORKDIR,"00log/{case}_{control}superEnhancer.log")
     threads: 4
     params:
             jobname = "{case}",
@@ -487,65 +497,3 @@ rule superEnhancer:
         python ROSE_main.py -g {config[rose_g]} -i {params.outputdir}/{input[4]} -r {params.outputdir}/{input[1]} -c {params.outputdir}/{input[0]} -o {params.outputdir}/{output}
         """
 
-################################################################################################################################
-
-#                     Run ChromHMM for a subset of histone modifications                                                       #
-
-#################################################################################################################################
-
-
-rule bam2bed:
-    input :
-        "04aln_downsample/{sample}-downsample.sorted.bam"
-    output:
-        "12bed/{sample}.bed"
-    params: jobname = "{sample}"
-    log: "00log/{sample}_bam2bed.log"
-    message: "converting bam to bed for {input}"
-    shell:
-        """
-        bedtools bamtobed -i {input} > {output}
-        """
-
-if config["chromHMM"]:
-    rule make_table:
-        input : expand("12bed/{sample}.bed", sample = HISTONE_CASES + CONTROLS)
-        output : "12bed/cellmarkfiletable.txt"
-        log: "00log/make_table_chromHMM.log"
-        message: "making a table for chromHMM"
-        run:
-            import os
-            from os.path import join
-            with open (output[0], "w") as f:
-                for case in HISTONE_CASES:
-                    sample = "_".join(case.split("_")[0:-1])
-                    mark = case.split("_")[-1]
-                    control = sample + "_" + CONTROL
-                    case_bed = case + ".bed"
-                    if os.path.exists(join("12bed", case_bed)):
-                        f.write(sample + "\t" +  mark + "\t" + case + ".bed" + "\t" + control + ".bed" + "\n")
-
-if config["chromHMM"]:
-    rule chromHmm_binarize:
-        input :
-            expand("12bed/{sample}.bed", sample = HISTONE_CASES + CONTROLS), "12bed/cellmarkfiletable.txt"
-        output:
-            "13chromHMM/binarizedData"
-        log:
-            chromhmm_binarize = "00log/chromhmm_bin.log"
-        params: chromhmm = "-mx12000M -jar /scratch/genomic_med/apps/chromhmm/chromhmm_v1.11/ChromHMM.jar"
-        shell:
-            """
-            java {params.chromhmm} BinarizeBed -b {config[binsize]}  /scratch/genomic_med/apps/chromhmm/chromhmm_v1.11/CHROMSIZES/{config[chromHmm_g]}.txt 12bed/ 12bed/cellmarkfiletable.txt {output} 2> {log.chromhmm_binarize}
-            """
-
-if config["chromHMM"]:
-    rule chromHmm_learn:
-        input: "13chromHMM/binarizedData"
-        output: "13chromHMM/MYOUTPUT"
-        log: chromhmm_learn = "00log/chromhmm_learn.log"
-        params: chromhmm = "-mx12000M -jar /scratch/genomic_med/apps/chromhmm/chromhmm_v1.11/ChromHMM.jar"
-        shell:
-            """
-            java {params.chromhmm} LearnModel -p 10 -b {config[binsize]} {input} {output} {config[state]} {config[chromHmm_g]} 2> {log.chromhmm_learn}
-            """
