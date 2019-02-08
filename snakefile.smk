@@ -16,19 +16,28 @@ FILES = json.load(open(config['SAMPLES_JSON']))
 ROSE_FOLDER = config['rose_folder']
 TSS_BED = config['tss_bed']
 
+##Regroup Marks or TF by sample
+SAMPLES = dict()
+for sample in sorted(FILES.keys()):
+    for sample_type in FILES[sample].keys():
+        SAMPLES.setdefault(sample,[]).append(sample_type)
 
-SAMPLES = sorted(FILES.keys())
-## list all Marks or TF with samples
+##Regroup samples per marks or TF
 MARKS = dict()
-for sample in SAMPLES:
+for sample in sorted(FILES.keys()):
     for sample_type in FILES[sample].keys():
             MARKS.setdefault(sample_type,[]).append(sample)
+print(MARKS)
+print(SAMPLES)
 
-## list all samples by sample_name and sample_type
+
+
+## list all samples by sample_name and sample_type (sampleName_MARK is the basis of most of this pipeline atm)
 MARK_SAMPLES = []
-for sample in SAMPLES:
+for sample in sorted(FILES.keys()):
     for sample_type in FILES[sample].keys():
         MARK_SAMPLES.append(sample + "_" + sample_type)
+print(MARK_SAMPLES)
 
 
 ##Aggregation of bigwigs by Marks or TF
@@ -38,6 +47,23 @@ def getBigWigWithMarkorTF(wildcards):
     for s in samples:
         bigwigs.append("07bigwig/"+s+"_"+wildcards.mark+".bw")
     return bigwigs
+
+##Aggregation of bams per sample
+def getBamsperSample(wildcards):
+
+    marks = SAMPLES[wildcards.samp]
+    bams = list()
+    for s in marks:
+        bams.append("03aln/"+s+"_"+wildcards.samp+".sorted.bam")
+    return bams
+
+##Aggregation of bam index per sample, necessary to avoid lanching without bai
+def getBaisperSample(wildcards):
+    marks = SAMPLES[wildcards.samp]
+    bais = list()
+    for s in marks:
+        bais.append("03aln/"+s+"_"+wildcards.samp+".sorted.bam.bai")
+    return bais
 
 # which sample_type is used as control for calling peaks: e.g. Input, IgG...
 CONTROL = config["control"]
@@ -94,6 +120,7 @@ ALL_PHATOM = expand("05phantompeakqual/{sample}.spp.out", sample = ALL_SAMPLES)
 ALL_BIGWIG = expand("07bigwig/{sample}.bw", sample = ALL_SAMPLES)
 ALL_COMPUTEMATRIX = expand("DPQC/{mark}.computeMatrix.gz", mark = MARKS)
 ALL_PLOTS = expand("DPQC/{mark}.plotHeatmap.png", mark = MARKS)
+ALL_PLOTS = expand("DPQC/{samp}.fingerprint.png",samp = SAMPLES)
 ALL_QC = ["10multiQC/multiQC_log.html"]
 
 
@@ -148,6 +175,7 @@ rule all:
 def get_fastq(wildcards):
     sample = "_".join(wildcards.sample.split("_")[0:-1])
     mark = wildcards.sample.split("_")[-1]
+    print(sample,mark)
     return FILES[sample][mark]
 
 ## now only for single-end ChIPseq,
@@ -216,6 +244,15 @@ rule flagstat_bam:
     shell:
         """
         samtools flagstat {input} > {output} 2> {log}
+        """
+   
+rule plotFingerPrint:
+    input: getBamsperSample
+    output: "DPQC/{samp}.fingerprint.png"
+    params: "DPQC/{samp}.rawcount.tab"
+    shell:
+        """
+        Fingerprint -b {input[0]} --plotFile {output} --outRawCounts {params}
         """
 
 rule phantom_peak_qual:
