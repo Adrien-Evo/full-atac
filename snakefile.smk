@@ -18,28 +18,26 @@ TSS_BED = config['tss_bed']
 
 
 SAMPLES = sorted(FILES.keys())
-
-## list all samples by sample_name and sample_type
+## list all Marks or TF with samples
 MARKS = dict()
 for sample in SAMPLES:
     for sample_type in FILES[sample].keys():
             MARKS.setdefault(sample_type,[]).append(sample)
 
-
-print(MARKS)
-
-
+## list all samples by sample_name and sample_type
 MARK_SAMPLES = []
 for sample in SAMPLES:
     for sample_type in FILES[sample].keys():
         MARK_SAMPLES.append(sample + "_" + sample_type)
 
 
-
-ALL_MARKED = []
-
-ALL_MARKED = expand("DPQC/{sample}.gz", sample = MARKS)
-print(ALL_MARKED)
+##Aggregation of bigwigs by Marks or TF
+def getBigWigWithMarkorTF(wildcards):
+    samples = MARKS[wildcards.mark]
+    bigwigs = list()
+    for s in samples:
+        bigwigs.append("07bigwig/"+s+"_"+wildcards.mark+".bw")
+    return bigwigs
 
 # which sample_type is used as control for calling peaks: e.g. Input, IgG...
 CONTROL = config["control"]
@@ -64,6 +62,7 @@ ALL_BDGtreat = []
 ALL_BIGWIGFE = []
 ALL_BIGWIGLR = []
 ALL_BIGWIGUCSC = []
+ALL_COMPUTEMATRIX = []
 
 for case in CASES:
     sample = "_".join(case.split("_")[0:-1])
@@ -92,8 +91,10 @@ ALL_DOWNSAMPLE_INDEX = expand("04aln_downsample/{sample}-downsample.sorted.bam.b
 ALL_FLAGSTAT = expand("03aln/{sample}.sorted.bam.flagstat", sample = ALL_SAMPLES)
 ALL_PHATOM = expand("05phantompeakqual/{sample}.spp.out", sample = ALL_SAMPLES)
 ALL_BIGWIG = expand("07bigwig/{sample}.bw", sample = ALL_SAMPLES)
+ALL_COMPUTEMATRIX = expand("DPQC/{marks}.computeMatrix.gz", marks = MARKS)
 ALL_QC = ["10multiQC/multiQC_log.html"]
 
+print(ALL_COMPUTEMATRIX)
 
 
 TARGETS = []
@@ -115,7 +116,7 @@ TARGETS.extend(ALL_BDGtreat)
 TARGETS.extend(ALL_BIGWIGFE)
 TARGETS.extend(ALL_BIGWIGLR)
 TARGETS.extend(ALL_BIGWIGUCSC)
-TARGETS.extend(ALL_MARKED)
+TARGETS.extend(ALL_COMPUTEMATRIX)
 
 
 
@@ -279,8 +280,8 @@ rule make_bigwigs:
         """
 
 rule computeMatrix_QC:
-    input :  expand("07bigwig/{sample}_{{mark}}.bw", sample=SAMPLES)
-    output : "DPQC/{mark}.gz"
+    input : getBigWigWithMarkorTF 
+    output : "DPQC/{mark}.computeMatrix.gz"
     shell:
         """
         echo {input} {output}
