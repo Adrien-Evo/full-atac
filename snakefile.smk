@@ -14,16 +14,32 @@ localrules: all
 CLUSTER = json.load(open(config['CLUSTER_JSON']))
 FILES = json.load(open(config['SAMPLES_JSON']))
 ROSE_FOLDER = config['rose_folder']
+TSS_BED = config['tss_bed']
 
 
 SAMPLES = sorted(FILES.keys())
 
 ## list all samples by sample_name and sample_type
+MARKS = dict()
+for sample in SAMPLES:
+    for sample_type in FILES[sample].keys():
+            MARKS.setdefault(sample_type,[]).append(sample)
+
+
+print(MARKS)
+
+
 MARK_SAMPLES = []
 for sample in SAMPLES:
     for sample_type in FILES[sample].keys():
         MARK_SAMPLES.append(sample + "_" + sample_type)
 
+
+
+ALL_MARKED = []
+
+ALL_MARKED = expand("DPQC/{sample}.gz", sample = MARKS)
+print(ALL_MARKED)
 
 # which sample_type is used as control for calling peaks: e.g. Input, IgG...
 CONTROL = config["control"]
@@ -99,6 +115,7 @@ TARGETS.extend(ALL_BDGtreat)
 TARGETS.extend(ALL_BIGWIGFE)
 TARGETS.extend(ALL_BIGWIGLR)
 TARGETS.extend(ALL_BIGWIGUCSC)
+TARGETS.extend(ALL_MARKED)
 
 
 
@@ -259,6 +276,14 @@ rule make_bigwigs:
     shell:
         """
         bamCoverage -b {input[0]} --normalizeUsing RPKM --binSize 30 --smoothLength 300 -p 5 --extendReads 200 -o {output} 2> {log}
+        """
+
+rule computeMatrix_QC:
+    input :  expand("07bigwig/{sample}_{{mark}}.bw", sample=SAMPLES)
+    output : "DPQC/{mark}.gz"
+    shell:
+        """
+        echo {input} {output}
         """
 
 rule get_UCSC_bigwig:
