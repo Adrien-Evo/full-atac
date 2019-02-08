@@ -16,6 +16,14 @@ FILES = json.load(open(config['SAMPLES_JSON']))
 ROSE_FOLDER = config['rose_folder']
 TSS_BED = config['tss_bed']
 
+## list all samples by sample_name and sample_type (sampleName_MARK is the basis of most of this pipeline atm)
+MARK_SAMPLES = []
+SAMPLES = sorted(FILES.keys())
+
+for sample in SAMPLES:
+    for sample_type in FILES[sample].keys():
+        MARK_SAMPLES.append(sample + "_" + sample_type)
+
 ##Regroup Marks or TF by sample
 SAMPLES = dict()
 for sample in sorted(FILES.keys()):
@@ -27,17 +35,11 @@ MARKS = dict()
 for sample in sorted(FILES.keys()):
     for sample_type in FILES[sample].keys():
             MARKS.setdefault(sample_type,[]).append(sample)
-print(MARKS)
-print(SAMPLES)
 
 
 
-## list all samples by sample_name and sample_type (sampleName_MARK is the basis of most of this pipeline atm)
-MARK_SAMPLES = []
-for sample in sorted(FILES.keys()):
-    for sample_type in FILES[sample].keys():
-        MARK_SAMPLES.append(sample + "_" + sample_type)
-print(MARK_SAMPLES)
+
+
 
 
 ##Aggregation of bigwigs by Marks or TF
@@ -54,7 +56,7 @@ def getBamsperSample(wildcards):
     marks = SAMPLES[wildcards.samp]
     bams = list()
     for s in marks:
-        bams.append("03aln/"+s+"_"+wildcards.samp+".sorted.bam")
+        bams.append("03aln/"+wildcards.samp+"_"+s+".sorted.bam")
     return bams
 
 ##Aggregation of bam index per sample, necessary to avoid lanching without bai
@@ -120,7 +122,7 @@ ALL_PHATOM = expand("05phantompeakqual/{sample}.spp.out", sample = ALL_SAMPLES)
 ALL_BIGWIG = expand("07bigwig/{sample}.bw", sample = ALL_SAMPLES)
 ALL_COMPUTEMATRIX = expand("DPQC/{mark}.computeMatrix.gz", mark = MARKS)
 ALL_PLOTS = expand("DPQC/{mark}.plotHeatmap.png", mark = MARKS)
-ALL_PLOTS = expand("DPQC/{samp}.fingerprint.png",samp = SAMPLES)
+ALL_PLOTS.extend(expand("DPQC/{samp}.fingerprint.png",samp = SAMPLES))
 ALL_QC = ["10multiQC/multiQC_log.html"]
 
 
@@ -149,8 +151,7 @@ TARGETS.extend(ALL_PLOTS)
 
 
 
-
-
+print(TARGETS)
 
 ## sometimes if if you have TF ChIP-seq data, do not include it to chromHMM, or you want
 ## only a subset of the histone marks be included in the chromHMM call
@@ -173,9 +174,10 @@ rule all:
 
 ## get a list of fastq.gz files for the same mark, same sample
 def get_fastq(wildcards):
+    #print(wildcards)
     sample = "_".join(wildcards.sample.split("_")[0:-1])
     mark = wildcards.sample.split("_")[-1]
-    print(sample,mark)
+    #print(sample,mark)
     return FILES[sample][mark]
 
 ## now only for single-end ChIPseq,
