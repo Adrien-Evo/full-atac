@@ -65,7 +65,7 @@ def getBaisperSample(wildcards):
     marks = SAMPLES[wildcards.samp]
     bais = list()
     for s in marks:
-        bais.append(os.path.join(WORKDIR,"03aln/"+s+"_"+wildcards.samp+".sorted.bam.bai"))
+        bais.append(os.path.join(WORKDIR,"03aln/"+wildcards.samp+"_"+s+".sorted.bam.bai"))
     return bais
 
 # which sample_type is used as control for calling peaks: e.g. Input, IgG...
@@ -119,12 +119,14 @@ ALL_FASTQC  = expand(os.path.join(WORKDIR,"02fqc/{sample}_fastqc.zip"), sample =
 ALL_INDEX = expand(os.path.join(WORKDIR,"03aln/{sample}.sorted.bam.bai"), sample = ALL_SAMPLES)
 ALL_DOWNSAMPLE_INDEX = expand(os.path.join(WORKDIR,"04aln_downsample/{sample}-downsample.sorted.bam.bai"), sample = ALL_SAMPLES)
 ALL_FLAGSTAT = expand(os.path.join(WORKDIR,"03aln/{sample}.sorted.bam.flagstat"), sample = ALL_SAMPLES)
-ALL_PHATOM = expand(os.path.join(WORKDIR,"05phantompeakqual/{sample}.spp.out"), sample = ALL_SAMPLES)
+ALL_PHANTOM = expand(os.path.join(WORKDIR,"05phantompeakqual/{sample}.spp.out"), sample = ALL_SAMPLES)
 ALL_BIGWIG = expand(os.path.join(WORKDIR,"07bigwig/{sample}.bw"), sample = ALL_SAMPLES)
 ALL_COMPUTEMATRIX = expand(os.path.join(WORKDIR,"DPQC/{mark}.computeMatrix.gz"), mark = MARKS)
 ALL_PLOTS = expand(os.path.join(WORKDIR,"DPQC/{mark}.plotHeatmap.png"), mark = MARKS)
 ALL_PLOTS.extend(expand(os.path.join(WORKDIR,"DPQC/{samp}.fingerprint.png"),samp = SAMPLES))
-ALL_QC = ["10multiQC/multiQC_log.html"]
+ALL_DPQC = expand(os.path.join(WORKDIR,"DPQC/{samp}.plotFingerprintOutRawCounts.txt"),samp = SAMPLES)
+ALL_DPQC.extend(expand(os.path.join(WORKDIR,"DPQC/{samp}.plotFingerprintOutQualityMetrics.txt"),samp = SAMPLES))
+ALL_QC = [os.path.join(WORKDIR,"10multiQC/multiQC_log.html")]
 
 
 
@@ -133,7 +135,7 @@ TARGETS.extend(ALL_FASTQC)
 TARGETS.extend(ALL_BAM)
 TARGETS.extend(ALL_DOWNSAMPLE_BAM)
 TARGETS.extend(ALL_INDEX)
-TARGETS.extend(ALL_PHATOM)
+TARGETS.extend(ALL_PHANTOM)
 TARGETS.extend(ALL_PEAKS)
 TARGETS.extend(ALL_BIGWIG)
 TARGETS.extend(ALL_inputSubtract_BIGWIG)
@@ -193,11 +195,12 @@ rule fastqc:
     output: os.path.join(WORKDIR,"02fqc/{sample}_fastqc.zip"), os.path.join(WORKDIR,"02fqc/{sample}_fastqc.html")
     log:    os.path.join(WORKDIR,"00log/{sample}_fastqc")
     threads: CLUSTER["fastqc"]["cpu"]
-    params : jobname = "{sample}"
+    params :
+        output_dir = os.path.join(WORKDIR,"02fqc")
     message: "fastqc {input}: {threads}"
     shell:
         """
-        fastqc -o 02fqc -f fastq --noextract {input} 2> {log}
+        fastqc -o {params.output_dir} -f fastq --noextract {input} 2> {log}
         """
 
 # get the duplicates marked sorted bam, remove unmapped reads by samtools view -F 4 and dupliated reads by samblaster -r
@@ -215,10 +218,10 @@ rule align:
         markdup = os.path.join(WORKDIR,"00log/{sample}.markdup")
     shell:
         """
-        bowtie2 -p 16 -x {config[idx_bt1]} -q {input} 2> {log.bowtie} \
+        bowtie2 -p 4 -x {config[idx_bt1]} -q {input} 2> {log.bowtie} \
         | samblaster --removeDups \
     | samtools view -Sb -F 4 - \
-    | samtools sort -m 2G -@ 16 -T {output[0]}.tmp -o {output[0]} 2> {log.markdup}
+    | samtools sort -m 8G -@ 4 -T {output[0]}.tmp -o {output[0]} 2> {log.markdup}
     """
 
 rule index_bam:
@@ -247,16 +250,24 @@ rule flagstat_bam:
         """
    
 rule plotFingerPrint:
-    input: getBamsperSample
-    output: os.path.join(WORKDIR,"DPQC/{samp}.fingerprint.png")
-    params: os.path.join(WORKDIR,"DPQC/{samp}.rawcount.tab")
+    input: 
+        bam = getBamsperSample,
+        bai = getBaisperSample
+    output: 
+        plot = os.path.join(WORKDIR,"DPQC/{samp}.fingerprint.png"),
+        rawCounts = os.path.join(WORKDIR,"DPQC/{samp}.plotFingerprintOutRawCounts.txt"),
+        qualityMetrics = os.path.join(WORKDIR,"DPQC/{samp}.plotFingerprintOutQualityMetrics.txt")
+    params: 
+        labels = lambda wildcards : SAMPLES[wildcards.samp]
     shell:
         """
-        Fingerprint -b {input[0]} --plotFile {output} --outRawCounts {params}
+        plotFingerprint -b {input.bam} --plotFile {output.plot} --labels {params.labels} --outRawCounts {output.rawCounts} --outQualityMetrics {output.qualityMetrics}
         """
 
 rule phantom_peak_qual:
-    input: os.path.join(WORKDIR,"03aln/{sample}.sorted.bam"), os.path.join(WORKDIR,"03aln/{sample}.sorted.bam.bai")
+    input: 
+        bam = os.path.join(WORKDIR,"03aln/{sample}.sorted.bam"), 
+        bai = os.path.join(WORKDIR,"03aln/{sample}.sorted.bam.bai")
     output: os.path.join(WORKDIR,"05phantompeakqual/{sample}.spp.out")
     log: os.path.join(WORKDIR,"00log/{sample}_phantompeakqual.log")
     threads: 4
@@ -264,11 +275,11 @@ rule phantom_peak_qual:
     message: "phantompeakqual for {input}"
     shell:
         """
-        run_spp.R -c={input[0]} -savp -rf -p=4 -odir={params}  -out={output} -tmpdir={params} 2> {log}
+        run_spp.R -c={input.bam} -savp -rf -p=4 -odir={params}  -out={output} -tmpdir={params} 2> {log}
         """
 
 rule down_sample:
-    input: os.path.join(WORKDIR,"03aln/{sample}.sorted.bam"), os.path.join(WORKDIR,"03aln/{sample}.sorted.bam.bai"), os.path.join("03aln/{sample}.sorted.bam.flagstat")
+    input: os.path.join(WORKDIR,"03aln/{sample}.sorted.bam"), os.path.join(WORKDIR,"03aln/{sample}.sorted.bam.bai"), os.path.join(WORKDIR,"03aln/{sample}.sorted.bam.flagstat")
     output: os.path.join(WORKDIR,"04aln_downsample/{sample}-downsample.sorted.bam"), os.path.join(WORKDIR,"04aln_downsample/{sample}-downsample.sorted.bam.bai")
     log: os.path.join(WORKDIR,"00log/{sample}_downsample.log")
     threads: 5
@@ -360,20 +371,21 @@ rule call_peaks_macs1:
     params:
         name1 = "{case}_vs_{control}_macs1",
         name2 = "{case}_vs_{control}_macs1_nomodel",
-        jobname = "{case}"
+        jobname = "{case}",
+        outdir = os.path.join(WORKDIR,"08peak_macs1/")
     message: "call_peaks macs14 {input}: {threads} threads"
     shell:
         """
         source activate macs
         macs -t {input.case} \
             -c {input.control} --keep-dup all -f BAM -g {config[macs_g]} \
-            --outdir 08peak_macs1 -n {params.name1} --single-profile -p {config[macs_pvalue]} &> {log.macs1}
+            --outdir {params.outdir} -n {params.name1} --single-profile -p {config[macs_pvalue]} &> {log.macs1}
 
         # nomodel for macs14, shift-size will be 100 bp (e.g. fragment length of 200bp)
         # can get fragment length from the phantompeakqual. Now set it to 200 bp for all.
         macs -t {input.case} \
             -c {input.control} --keep-dup all -f BAM -g {config[macs_g]} \
-            --outdir 08peak_macs1 -n {params.name2} --nomodel -p {config[macs_pvalue]} &> {log.macs1_nomodel}
+            --outdir {params.outdir} -n {params.name2} --nomodel -p {config[macs_pvalue]} &> {log.macs1_nomodel}
         """
         
 
@@ -389,7 +401,8 @@ rule call_peaks_macs2:
     log: os.path.join(WORKDIR,"00log/{case}_vs_{control}_call_peaks_macs2.log")
     params:
         name = "{case}_vs_{control}_macs2",
-        jobname = "{case}"
+        jobname = "{case}",
+        outdir = os.path.join(WORKDIR,"09peak_macs2")
     message: "call_peaks macs2 {input}: {threads} threads"
     shell:
         """
@@ -397,7 +410,7 @@ rule call_peaks_macs2:
         ## for macs2, when nomodel is set, --extsize is default to 200bp, this is the same as 2 * shift-size in macs14.
         macs2 callpeak -t {input.case} \
             -c {input.control} --keep-dup all -f BAM --bdg -g {config[macs2_g]} \
-            --outdir 09peak_macs2 -n {params.name} -p {config[macs2_pvalue]} --broad --broad-cutoff {config[macs2_pvalue_broad]} --nomodel &> {log}
+            --outdir {params.outdir} -n {params.name} -p {config[macs2_pvalue]} --broad --broad-cutoff {config[macs2_pvalue_broad]} --nomodel &> {log}
         """
 
 #Cleaning broadGapped peak by adding "chr" on chr, sorting, setting score > 1000 to 1000 with awk then converting to bigbed
@@ -464,9 +477,10 @@ rule get_bigwig_LR:
 rule multiQC:
     input :
         expand(os.path.join(WORKDIR,"00log/{sample}.align"), sample = ALL_SAMPLES),
-        expand(os.path.join(WORKDIR,"03aln/{sample}.sorted.bam.flagstat"), sample = ALL_SAMPLES),
-        expand(os.path.join(WORKDIR,"02fqc/{sample}_fastqc.zip"), sample = ALL_SAMPLES),
-        expand(os.path.join(WORKDIR,"05phantompeakqual/{sample}.spp.out"), sample = ALL_SAMPLES)
+        ALL_FLAGSTAT,
+        ALL_FASTQC,
+        ALL_PHANTOM,
+        ALL_DPQC
     output: os.path.join(WORKDIR,"10multiQC/multiQC_log.html")
     log: os.path.join(WORKDIR,"00log/multiqc.log")
     message: "multiqc for all logs"
@@ -494,6 +508,6 @@ rule superEnhancer:
         """
         source activate macs
         cd {ROSE_FOLDER}
-        python ROSE_main.py -g {config[rose_g]} -i {params.outputdir}/{input[4]} -r {params.outputdir}/{input[1]} -c {params.outputdir}/{input[0]} -o {params.outputdir}/{output}
+        python ROSE_main.py -g {config[rose_g]} -i {input[4]} -r {input[1]} -c {input[0]} -o {output}
         """
 
