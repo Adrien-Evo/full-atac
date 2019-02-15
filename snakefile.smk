@@ -168,6 +168,19 @@ if config["chromHMM"]:
     TARGETS.extend(CHROMHMM)
     TARGETS.extend(CHROMHMM_TABLE)
 
+def get_subsampling_ratio(flagstatFile):
+    import re
+
+    with open(flagstatFile,"r") as f:
+        line =f.readlines()[4]
+        matchnumber = re.match(r'(\d.+) \+.+', line)
+        total_reads = int(matchnumber.group(1))
+
+    target_reads = config['target_reads']
+    if total_reads > target_reads:
+        return target_reads/total_reads
+    elif total_reads <= target_reads:
+        return 1
 
 localrules: all
 rule all:
@@ -186,6 +199,8 @@ rule merge_fastqs:
     output: os.path.join(WORKDIR,"01seq/{sample}.fastq")
     log: os.path.join(WORKDIR,"00log/{sample}_unzip")
     threads: CLUSTER["merge_fastqs"]["cpu"]
+    conda:
+        "envs/chipseq-qc.yml"
     params: jobname = "{sample}"
     message: "merging fastqs gunzip -c {input} > {output}"
     shell: "gunzip -c {input} > {output} 2> {log}"
@@ -195,6 +210,8 @@ rule fastqc:
     output: os.path.join(WORKDIR,"02fqc/{sample}_fastqc.zip"), os.path.join(WORKDIR,"02fqc/{sample}_fastqc.html")
     log:    os.path.join(WORKDIR,"00log/{sample}_fastqc")
     threads: CLUSTER["fastqc"]["cpu"]
+    conda:
+        "envs/chipseq-qc.yml"
     params :
         output_dir = os.path.join(WORKDIR,"02fqc")
     message: "fastqc {input}: {threads}"
@@ -209,6 +226,8 @@ rule align:
     input:  os.path.join(WORKDIR,"01seq/{sample}.fastq")
     output: os.path.join(WORKDIR,"03aln/{sample}.sorted.bam"), os.path.join(WORKDIR,"00log/{sample}.align")
     threads: CLUSTER["align"]["cpu"]
+    conda:
+        "envs/alignment.yml"
     params:
         bowtie = "--chunkmbs 320 -m 1 --best -p 5 ",
         jobname = "{sample}"
@@ -229,6 +248,8 @@ rule index_bam:
     output: os.path.join(WORKDIR,"03aln/{sample}.sorted.bam.bai")
     log:    os.path.join(WORKDIR,"00log/{sample}.index_bam")
     threads: 1
+    conda:
+        "envs/alignment.yml"
     params: jobname = "{sample}"
     message: "index_bam {input}: {threads} threads"
     shell:
@@ -242,6 +263,8 @@ rule flagstat_bam:
     output: os.path.join(WORKDIR,"03aln/{sample}.sorted.bam.flagstat")
     log:    os.path.join(WORKDIR,"00log/{sample}.flagstat_bam")
     threads: 1
+    conda:
+        "envs/alignment.yml"
     params: jobname = "{sample}"
     message: "flagstat_bam {input}: {threads} threads"
     shell:
@@ -257,6 +280,8 @@ rule plotFingerPrint:
         plot = os.path.join(WORKDIR,"DPQC/{samp}.fingerprint.png"),
         rawCounts = os.path.join(WORKDIR,"DPQC/{samp}.plotFingerprintOutRawCounts.txt"),
         qualityMetrics = os.path.join(WORKDIR,"DPQC/{samp}.plotFingerprintOutQualityMetrics.txt")
+    conda:
+        "envs/deeptools.yml"
     params: 
         labels = lambda wildcards : SAMPLES[wildcards.samp]
     shell:
@@ -271,6 +296,8 @@ rule phantom_peak_qual:
     output: os.path.join(WORKDIR,"05phantompeakqual/{sample}.spp.out")
     log: os.path.join(WORKDIR,"00log/{sample}_phantompeakqual.log")
     threads: 4
+    conda:
+        "envs/chipseq-qc.yml"
     params: os.path.join(WORKDIR,"05phantompeakqual/")
     message: "phantompeakqual for {input}"
     shell:
@@ -279,30 +306,25 @@ rule phantom_peak_qual:
         """
 
 rule down_sample:
-    input: os.path.join(WORKDIR,"03aln/{sample}.sorted.bam"), os.path.join(WORKDIR,"03aln/{sample}.sorted.bam.bai"), os.path.join(WORKDIR,"03aln/{sample}.sorted.bam.flagstat")
-    output: os.path.join(WORKDIR,"04aln_downsample/{sample}-downsample.sorted.bam"), os.path.join(WORKDIR,"04aln_downsample/{sample}-downsample.sorted.bam.bai")
+    input: 
+        bam = os.path.join(WORKDIR,"03aln/{sample}.sorted.bam"), 
+        bai = os.path.join(WORKDIR,"03aln/{sample}.sorted.bam.bai"), 
+        flagstat = os.path.join(WORKDIR,"03aln/{sample}.sorted.bam.flagstat")
+    output: 
+        bam = os.path.join(WORKDIR,"04aln_downsample/{sample}-downsample.sorted.bam"), 
+        bai = os.path.join(WORKDIR,"04aln_downsample/{sample}-downsample.sorted.bam.bai")
     log: os.path.join(WORKDIR,"00log/{sample}_downsample.log")
     threads: 5
-    params: jobname = "{sample}"
+    conda:
+        "envs/alignment.yml"
+    params: 
+        jobname = "{sample}"
     message: "downsampling for {input}"
-    run:
-        import re
-        import subprocess
-        with open (input[2], "r") as f:
-            # fifth line contains the number of mapped reads
-            line = f.readlines()[4]
-            match_number = re.match(r'(\d.+) \+.+', line)
-            total_reads = int(match_number.group(1))
-
-        target_reads = config["target_reads"] # 15million reads  by default, set up in the config.yaml file
-        if total_reads > target_reads:
-            down_rate = target_reads/total_reads
-        else:
-            down_rate = 1
-
-        shell("sambamba view -f bam -t 5 --subsampling-seed=3 -s {rate} {inbam} | samtools sort -m 2G -@ 5 -T {outbam}.tmp > {outbam} 2> {log}".format(rate = down_rate, inbam = input[0], outbam = output[0], log = log))
-
-        shell("samtools index {outbam}".format(outbam = output[0]))
+    shell:
+        """
+        sambamba view -f bam -t 5 --subsampling-seed=3 -s `sed '4q;d' {input.flagstat} | cut -d" " -f1` {input.bam} | samtools sort -m 2G -@ 5 -T {output.bam}.tmp > {output.bam} 2> {log}
+        samtools index {output.bam}
+        """
 
 rule make_inputSubtract_bigwigs:
     input : 
@@ -311,6 +333,8 @@ rule make_inputSubtract_bigwigs:
     output:  os.path.join(WORKDIR,"06bigwig_inputSubtract/{case}_subtract_{control}.bw")
     log: os.path.join(WORKDIR,"00log/{case}_{control}inputSubtract.makebw")
     threads: 5
+    conda:
+        "envs/deeptools.yml"
     params: jobname = "{case}"
     message: "making input subtracted bigwig for {input}"
     shell:
@@ -323,6 +347,8 @@ rule make_bigwigs:
     output: os.path.join(WORKDIR,"07bigwig/{sample}.bw")
     log: "00log/{sample}.makebw"
     threads: 5
+    conda:
+        "envs/deeptools.yml"
     params: jobname = "{sample}"
     message: "making bigwig for {input}"
     shell:
@@ -333,6 +359,8 @@ rule make_bigwigs:
 rule computeMatrix_QC:
     input : getBigWigWithMarkorTF 
     output : os.path.join(WORKDIR,"DPQC/{mark}.computeMatrix.gz")
+    conda:
+        "envs/deeptools.yml"
     params : TSS_BED
     shell:
         """
@@ -342,6 +370,8 @@ rule computeMatrix_QC:
 rule plotHeatmap:
     input :  os.path.join(WORKDIR,"DPQC/{mark}.computeMatrix.gz")
     output : os.path.join(WORKDIR,"DPQC/{mark}.plotHeatmap.png")
+    conda:
+        "envs/deeptools.yml"
     shell:
         """
         plotHeatmap -m {input} -out {output}
@@ -353,6 +383,8 @@ rule get_UCSC_bigwig:
     params : 
         wig1 = os.path.join(WORKDIR,"06bigwig_inputSubtract/{case}_subtract_{control}_temp.wig"),
         wig2 = os.path.join(WORKDIR,"06bigwig_inputSubtract/{case}_subtract_{control}_temp2.wig")
+    conda:
+        "envs/ucsc-utilities.yml"
     shell:
         """
         ./bigWigToWig {input} {params.wig1}
@@ -373,6 +405,8 @@ rule call_peaks_macs1:
         name2 = "{case}_vs_{control}_macs1_nomodel",
         jobname = "{case}",
         outdir = os.path.join(WORKDIR,"08peak_macs1/")
+    conda:
+        "envs/macs.yml"
     message: "call_peaks macs14 {input}: {threads} threads"
     shell:
         """
@@ -403,10 +437,11 @@ rule call_peaks_macs2:
         name = "{case}_vs_{control}_macs2",
         jobname = "{case}",
         outdir = os.path.join(WORKDIR,"09peak_macs2")
+    conda:
+        "envs/macs.yml"
     message: "call_peaks macs2 {input}: {threads} threads"
     shell:
         """
-        source activate macs
         ## for macs2, when nomodel is set, --extsize is default to 200bp, this is the same as 2 * shift-size in macs14.
         macs2 callpeak -t {input.case} \
             -c {input.control} --keep-dup all -f BAM --bdg -g {config[macs2_g]} \
@@ -419,6 +454,8 @@ rule get_UCSC_bigBed:
     output: os.path.join(WORKDIR,"12UCSC_broad/{case}_vs_{control}_macs2_peaks.broadPeak")
     params : 
         bed1 = temp(os.path.join(WORKDIR,"12UCSC_broad/{case}_vs_{control}_macs2_peaks.bed"))
+    conda:
+        "envs/ucsc-utilities.yml"
     shell:
         """
         sed -r 's/^[0-9]|^X|^Y|^MT/chr&/g' {input} | LC_COLLATE=C sort -k1,1 -k2,2n | awk '{{if($5 > 1000) $5 = 1000}}; {{print $0}}' > {params.bed1}
@@ -431,9 +468,10 @@ rule get_bdg_FE:
         case = os.path.join(WORKDIR,"09peak_macs2/{case}_vs_{control}_macs2_treat_pileup.bdg")
     output : 
         FE = os.path.join(WORKDIR,"09peak_macs2/{case}_vs_{control}_FE.bdg")
+    conda:
+        "envs/macs.yml"
     shell:
         """
-        source activate macs
         macs2 bdgcmp -t {input.case} -c {input.control} -o {output.FE} -m subtract 
         """
 
@@ -442,9 +480,10 @@ rule get_bdg_LR:
         control = os.path.join(WORKDIR,"09peak_macs2/{case}_vs_{control}_macs2_control_lambda.bdg"), 
         case = os.path.join(WORKDIR,"09peak_macs2/{case}_vs_{control}_macs2_treat_pileup.bdg")
     output : logLR = os.path.join(WORKDIR,"09peak_macs2/{case}_vs_{control}_logLR.bdg")
+    conda:
+        "envs/macs.yml"
     shell:
         """
-        source activate macs
         macs2 bdgcmp -t {input.case} -c {input.control} -o {output.logLR} -m ppois -p 0.00001
         """
 ##Here bed graph are converted to bigwig. Before they are sorted and the chr is added for the UCSC browser
@@ -455,6 +494,8 @@ rule get_bigwig_FE:
         FE = os.path.join(WORKDIR,"09peak_macs2/{case}_vs_{control}_FE.bw")
     params :
         tempFE = temp(os.path.join(WORKDIR,"09peak_macs2/{case}_vs_{control}_FE.temp"))
+    conda:
+        "envs/ucsc-utilities.yml"
     shell:
         """
         sed -r 's/^[0-9]|^X|^Y|^MT/chr&/g' {input.FE} | LC_COLLATE=C sort -k1,1 -k2,2n > {params.tempFE}
@@ -468,6 +509,8 @@ rule get_bigwig_LR:
         logLR = os.path.join(WORKDIR,"09peak_macs2/{case}_vs_{control}_logLR.bw")
     params :
         tempLR = temp(os.path.join(WORKDIR,"09peak_macs2/{case}_vs_{control}_logLR.temp"))
+    conda:
+        "envs/ucsc-utilities.yml"
     shell:
         """
         sed 's/^/chr/g' {input.logLR} | LC_COLLATE=C sort -k1,1 -k2,2n > {params.tempLR}
@@ -482,6 +525,8 @@ rule multiQC:
         ALL_PHANTOM,
         ALL_DPQC
     output: os.path.join(WORKDIR,"10multiQC/multiQC_log.html")
+    conda:
+        "envs/chipseq-qc.yml"
     log: os.path.join(WORKDIR,"00log/multiqc.log")
     message: "multiqc for all logs"
     shell:
