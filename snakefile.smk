@@ -168,19 +168,6 @@ if config["chromHMM"]:
     TARGETS.extend(CHROMHMM)
     TARGETS.extend(CHROMHMM_TABLE)
 
-def get_subsampling_ratio(flagstatFile):
-    import re
-
-    with open(flagstatFile,"r") as f:
-        line =f.readlines()[4]
-        matchnumber = re.match(r'(\d.+) \+.+', line)
-        total_reads = int(matchnumber.group(1))
-
-    target_reads = config['target_reads']
-    if total_reads > target_reads:
-        return target_reads/total_reads
-    elif total_reads <= target_reads:
-        return 1
 
 localrules: all
 rule all:
@@ -305,7 +292,6 @@ rule phantom_peak_qual:
         run_spp -c={input.bam} -savp -rf -p=4 -odir={params}  -out={output} -tmpdir={params} 2> {log}
         """
 
-#sed '5q;d' {input.flagstat} | cut -d" " -f1 | awk '{{ratio = config[target_reads]/
 rule down_sample:
     input: 
         bam = os.path.join(WORKDIR,"03aln/{sample}.sorted.bam"), 
@@ -323,7 +309,7 @@ rule down_sample:
     message: "downsampling for {input}"
     shell:
         """
-        sambamba view -f bam -t 5 --subsampling-seed=3 -s 1 {input.bam} | samtools sort -m 2G -@ 5 -T {output.bam}.tmp > {output.bam} 2> {log}
+        sambamba view -f bam -t 5 --subsampling-seed=3 -s `sed '5q;d' {input.flagstat} | cut -d" " -f1 | awk '{{ratio = {config[target_reads]}/$0}};{{if(ratio < 1 )print ratio; else print 1}}'` {input.bam} | samtools sort -m 2G -@ 5 -T {output.bam}.tmp > {output.bam} 2> {log}
         samtools index {output.bam}
         """
 
