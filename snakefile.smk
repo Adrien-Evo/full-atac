@@ -297,14 +297,15 @@ rule phantom_peak_qual:
     log: os.path.join(WORKDIR,"00log/{sample}_phantompeakqual.log")
     threads: 4
     conda:
-        "envs/chipseq-qc.yml"
+        "envs/phantompeakqualtools.yml"
     params: os.path.join(WORKDIR,"05phantompeakqual/")
     message: "phantompeakqual for {input}"
     shell:
         """
-        run_spp.R -c={input.bam} -savp -rf -p=4 -odir={params}  -out={output} -tmpdir={params} 2> {log}
+        run_spp -c={input.bam} -savp -rf -p=4 -odir={params}  -out={output} -tmpdir={params} 2> {log}
         """
 
+#sed '5q;d' {input.flagstat} | cut -d" " -f1 | awk '{{ratio = config[target_reads]/
 rule down_sample:
     input: 
         bam = os.path.join(WORKDIR,"03aln/{sample}.sorted.bam"), 
@@ -322,7 +323,7 @@ rule down_sample:
     message: "downsampling for {input}"
     shell:
         """
-        sambamba view -f bam -t 5 --subsampling-seed=3 -s `sed '4q;d' {input.flagstat} | cut -d" " -f1` {input.bam} | samtools sort -m 2G -@ 5 -T {output.bam}.tmp > {output.bam} 2> {log}
+        sambamba view -f bam -t 5 --subsampling-seed=3 -s 1 {input.bam} | samtools sort -m 2G -@ 5 -T {output.bam}.tmp > {output.bam} 2> {log}
         samtools index {output.bam}
         """
 
@@ -364,7 +365,7 @@ rule computeMatrix_QC:
     params : TSS_BED
     shell:
         """
-        computeMatrix reference-point -S {input} -R TSS_BED -a 3000 -b 3000 -out {output}
+        computeMatrix reference-point -S {input} -R {TSS_BED} -a 3000 -b 3000 -out {output}
         """
 
 rule plotHeatmap:
