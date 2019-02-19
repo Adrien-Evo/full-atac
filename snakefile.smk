@@ -5,7 +5,7 @@ import json
 shell.prefix("set -eo pipefail; echo BEGIN at $(date); ")
 shell.suffix("; exitstat=$?; echo END at $(date); echo exit status was $exitstat; exit $exitstat")
 
-configfile: "config_Cardio.yaml"
+configfile: "config_all.yaml"
 localrules: all
 # localrules will let the rule run locally rather than submitting to cluster
 # computing nodes, this is for very small jobs
@@ -21,6 +21,7 @@ WORKDIR = os.path.abspath(config["OUTPUT_DIR"])
 MARK_SAMPLES = []
 SAMPLES = sorted(FILES.keys())
 
+##Create sample_Marks list for all samples
 for sample in SAMPLES:
     for sample_type in FILES[sample].keys():
         MARK_SAMPLES.append(sample + "_" + sample_type)
@@ -36,9 +37,6 @@ MARKS = dict()
 for sample in sorted(FILES.keys()):
     for sample_type in FILES[sample].keys():
             MARKS.setdefault(sample_type,[]).append(sample)
-
-
-
 
 
 
@@ -270,10 +268,10 @@ rule plotFingerPrint:
     conda:
         "envs/deeptools.yml"
     params: 
-        labels = lambda wildcards : SAMPLES[wildcards.samp]
+        labels = lambda wildcards : [wildcards.samp + "_" + marks for marks in SAMPLES[wildcards.samp]]
     shell:
         """
-        plotFingerprint -b {input.bam} --plotFile {output.plot} --labels {params.labels} --outRawCounts {output.rawCounts} --outQualityMetrics {output.qualityMetrics}
+        plotFingerprint -b {input.bam} --plotFile {output.plot} --labels {params.labels} --plotTitle {wildcards.samp} --outRawCounts {output.rawCounts} --outQualityMetrics {output.qualityMetrics}
         """
 
 rule phantom_peak_qual:
@@ -332,7 +330,7 @@ rule make_inputSubtract_bigwigs:
 rule make_bigwigs:
     input : os.path.join(WORKDIR,"04aln_downsample/{sample}-downsample.sorted.bam"), os.path.join(WORKDIR,"04aln_downsample/{sample}-downsample.sorted.bam.bai")
     output: os.path.join(WORKDIR,"07bigwig/{sample}.bw")
-    log: "00log/{sample}.makebw"
+    log: os.path.join(WORKDIR,"00log/{sample}.makebw")
     threads: 5
     conda:
         "envs/deeptools.yml"
@@ -512,13 +510,14 @@ rule multiQC:
         ALL_PHANTOM,
         ALL_DPQC
     output: os.path.join(WORKDIR,"10multiQC/multiQC_log.html")
+    params: os.path.join(WORKDIR,"10multiQC/")
     conda:
         "envs/chipseq-qc.yml"
     log: os.path.join(WORKDIR,"00log/multiqc.log")
     message: "multiqc for all logs"
     shell:
         """
-        multiqc {input} -o 10multiQC -d -f -v -n multiQC_log 2> {log}
+        multiqc {input} -o {params} -d -f -v -n multiQC_log 2> {log}
         """
 
 ## ROSE has to be run inside the folder where ROSE_main.py resides.
@@ -534,8 +533,7 @@ rule superEnhancer:
     log: os.path.join(WORKDIR,"00log/{case}_{control}superEnhancer.log")
     threads: 4
     params:
-            jobname = "{case}",
-            outputdir = os.path.dirname(srcdir("00log"))
+            jobname = "{case}"
     shell:
         """
         source activate macs
