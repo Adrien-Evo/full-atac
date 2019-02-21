@@ -271,7 +271,7 @@ rule plotFingerPrint:
         labels = lambda wildcards : [wildcards.samp + "_" + marks for marks in SAMPLES[wildcards.samp]]
     shell:
         """
-        plotFingerprint -b {input.bam} --plotFile {output.plot} --labels {params.labels} --plotTitle {wildcards.samp} --outRawCounts {output.rawCounts} --outQualityMetrics {output.qualityMetrics}
+        plotFingerprint -b {input.bam} --plotFile {output.plot} --labels {params.labels} --region chr1 --skipZeros --numberOfSamples 100000 --minMappingQuality 30 --plotTitle {wildcards.samp} --outRawCounts {output.rawCounts} --outQualityMetrics {output.qualityMetrics}
         """
 
 rule phantom_peak_qual:
