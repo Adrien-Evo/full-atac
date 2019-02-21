@@ -446,6 +446,20 @@ rule get_UCSC_bigBed:
         sed -r 's/^[0-9]|^X|^Y|^MT/chr&/g' {input} | LC_COLLATE=C sort -k1,1 -k2,2n | awk '{{if($5 > 1000) $5 = 1000}}; {{print $0}}' > {params.bed1}
         ./bedToBigBed {params.bed1} ~/genome_size_UCSC_compatible_GRCh37.75.txt {output} -type=bed6+3
         """
+rule get_UCSC_hub:
+    input:  
+        bed = ALL_BROADPEAK,
+        bigwig = ALL_BIGWIGUCSC
+    params:
+        output_dir = os.path.join(WORKDIR,"HUB/"),
+        sample_name = list(SAMPLES.keys()),
+        categories = list(MARKS.keys()).remove(CONTROL)
+    conda:
+        "envs/trackhub.yml"
+    shell:
+        """
+        python3 scripts/makeUCSCtrackHub.py --hub_name test --sample_name {params.sample_name} --categories {params.categories} --output_dir {params.output_dir} --peaks {input.bed} --bw {input.bigwig} 2> makehub.err
+        """
 
 rule get_bdg_FE:
     input : 
