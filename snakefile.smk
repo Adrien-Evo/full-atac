@@ -84,10 +84,6 @@ ALL_PEAKS = []
 ALL_inputSubtract_BIGWIG = []
 ALL_SUPER = []
 ALL_BROADPEAK = []
-ALL_BDGControl = []
-ALL_BDGtreat = []
-ALL_BIGWIGFE = []
-ALL_BIGWIGLR = []
 ALL_BIGWIGUCSC = []
 ALL_COMPUTEMATRIX = []
 ALL_PLOTS = []
@@ -102,10 +98,6 @@ for case in CASES:
         ALL_inputSubtract_BIGWIG.append(os.path.join(WORKDIR,"06bigwig_inputSubtract/{}_subtract_{}.bw").format(case, control))
         ALL_SUPER.append(os.path.join(WORKDIR,"11superEnhancer/{}_vs_{}-super/").format(case, control))
         ALL_BROADPEAK.append(os.path.join(WORKDIR,"12UCSC_broad/{}_vs_{}_macs2_peaks.broadPeak").format(case, control))
-        ALL_BDGControl.append(os.path.join(WORKDIR,"09peak_macs2/{}_vs_{}_macs2_control_lambda.bdg").format(case, control))
-        ALL_BDGtreat.append(os.path.join(WORKDIR,"09peak_macs2/{}_vs_{}_macs2_treat_pileup.bdg").format(case, control))
-        ALL_BIGWIGFE.append(os.path.join(WORKDIR,"09peak_macs2/{}_vs_{}_FE.bw").format(case, control))
-        ALL_BIGWIGLR.append(os.path.join(WORKDIR,"09peak_macs2/{}_vs_{}_logLR.bw").format(case, control))
         ALL_BIGWIGUCSC.append(os.path.join(WORKDIR,"UCSC_compatible_bigWig/{}_subtract_{}.bw").format(case,control))
 
 
@@ -142,10 +134,6 @@ TARGETS.extend(ALL_FLAGSTAT)
 TARGETS.extend(ALL_QC)
 TARGETS.extend(ALL_SUPER)
 TARGETS.extend(ALL_BROADPEAK)
-TARGETS.extend(ALL_BDGControl)
-TARGETS.extend(ALL_BDGtreat)
-TARGETS.extend(ALL_BIGWIGFE)
-TARGETS.extend(ALL_BIGWIGLR)
 TARGETS.extend(ALL_BIGWIGUCSC)
 TARGETS.extend(ALL_COMPUTEMATRIX)
 TARGETS.extend(ALL_PLOTS)
@@ -461,60 +449,6 @@ rule get_UCSC_hub:
         python3 scripts/makeUCSCtrackHub.py --hub_name test --sample_name {params.sample_name} --categories {params.categories} --output_dir {params.output_dir} --peaks {input.bed} --bw {input.bigwig} 2> makehub.err
         """
 
-rule get_bdg_FE:
-    input : 
-        control = os.path.join(WORKDIR,"09peak_macs2/{case}_vs_{control}_macs2_control_lambda.bdg"),
-        case = os.path.join(WORKDIR,"09peak_macs2/{case}_vs_{control}_macs2_treat_pileup.bdg")
-    output : 
-        FE = os.path.join(WORKDIR,"09peak_macs2/{case}_vs_{control}_FE.bdg")
-    conda:
-        "envs/macs.yml"
-    shell:
-        """
-        macs2 bdgcmp -t {input.case} -c {input.control} -o {output.FE} -m subtract 
-        """
-
-rule get_bdg_LR:
-    input : 
-        control = os.path.join(WORKDIR,"09peak_macs2/{case}_vs_{control}_macs2_control_lambda.bdg"), 
-        case = os.path.join(WORKDIR,"09peak_macs2/{case}_vs_{control}_macs2_treat_pileup.bdg")
-    output : logLR = os.path.join(WORKDIR,"09peak_macs2/{case}_vs_{control}_logLR.bdg")
-    conda:
-        "envs/macs.yml"
-    shell:
-        """
-        macs2 bdgcmp -t {input.case} -c {input.control} -o {output.logLR} -m ppois -p 0.00001
-        """
-##Here bed graph are converted to bigwig. Before they are sorted and the chr is added for the UCSC browser
-rule get_bigwig_FE:
-    input : 
-        FE = os.path.join(WORKDIR,"09peak_macs2/{case}_vs_{control}_FE.bdg")
-    output : 
-        FE = os.path.join(WORKDIR,"09peak_macs2/{case}_vs_{control}_FE.bw")
-    params :
-        tempFE = temp(os.path.join(WORKDIR,"09peak_macs2/{case}_vs_{control}_FE.temp"))
-    conda:
-        "envs/ucsc-utilities.yml"
-    shell:
-        """
-        sed -r 's/^[0-9]|^X|^Y|^MT/chr&/g' {input.FE} | LC_COLLATE=C sort -k1,1 -k2,2n > {params.tempFE}
-        ./bedGraphToBigWig {params.tempFE} ~/genome_size_UCSC_compatible_GRCh37.75.txt {output.FE}
-        """
-
-rule get_bigwig_LR:
-    input : 
-        logLR = os.path.join(WORKDIR,"09peak_macs2/{case}_vs_{control}_logLR.bdg")
-    output : 
-        logLR = os.path.join(WORKDIR,"09peak_macs2/{case}_vs_{control}_logLR.bw")
-    params :
-        tempLR = temp(os.path.join(WORKDIR,"09peak_macs2/{case}_vs_{control}_logLR.temp"))
-    conda:
-        "envs/ucsc-utilities.yml"
-    shell:
-        """
-        sed 's/^/chr/g' {input.logLR} | LC_COLLATE=C sort -k1,1 -k2,2n > {params.tempLR}
-        ./bedGraphToBigWig {params.tempLR} ~/genome_size_wchr_GRCh37.75.txt {output.logLR}
-        """
 
 rule multiQC:
     input :
@@ -554,4 +488,3 @@ rule superEnhancer:
         cd {ROSE_FOLDER}
         python ROSE_main.py -g {config[rose_g]} -i {input[4]} -r {input[1]} -c {input[0]} -o {output}
         """
-
