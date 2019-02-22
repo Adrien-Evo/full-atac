@@ -68,6 +68,8 @@ def getBaisperSample(wildcards):
 
 # which sample_type is used as control for calling peaks: e.g. Input, IgG...
 CONTROL = config["control"]
+MARKS_NO_CONTROL = list(MARKS.keys())
+MARKS_NO_CONTROL.remove(CONTROL)
 CONTROLS = [sample for sample in MARK_SAMPLES if CONTROL in sample]
 CASES = [sample for sample in MARK_SAMPLES if CONTROL not in sample]
 
@@ -95,6 +97,7 @@ for case in CASES:
         ALL_PEAKS.append(os.path.join(WORKDIR,"08peak_macs1/{}_vs_{}_macs1_peaks.bed").format(case, control))
         ALL_PEAKS.append(os.path.join(WORKDIR,"08peak_macs1/{}_vs_{}_macs1_nomodel_peaks.bed").format(case, control))
         ALL_PEAKS.append(os.path.join(WORKDIR,"09peak_macs2/{}_vs_{}_macs2_peaks.xls").format(case, control))
+        ALL_PEAKS.append(os.path.join(WORKDIR,"09peak_macs2/{}_vs_{}_macs2_peaks.broadPeak").format(case, control))
         ALL_inputSubtract_BIGWIG.append(os.path.join(WORKDIR,"06bigwig_inputSubtract/{}_subtract_{}.bw").format(case, control))
         ALL_SUPER.append(os.path.join(WORKDIR,"11superEnhancer/{}_vs_{}-super/").format(case, control))
         ALL_BROADPEAK.append(os.path.join(WORKDIR,"12UCSC_broad/{}_vs_{}_macs2_peaks.broadPeak").format(case, control))
@@ -291,7 +294,7 @@ rule down_sample:
     conda:
         "envs/alignment.yml"
     params: 
-        jobname = "{sample}"
+    log: os.path.join(WORKDIR,"00log/{sample}.phantompeakqual.log")
     message: "downsampling for {input}"
     shell:
         """
@@ -347,7 +350,7 @@ rule plotHeatmap:
         "envs/deeptools.yml"
     shell:
         """
-        plotHeatmap -m {input} -out {output}
+        plotHeatmap -m {input} -out {output} --yMin 0 --yMax 10
         """
 
 rule get_UCSC_bigwig:
@@ -402,9 +405,7 @@ rule call_peaks_macs2:
         case = os.path.join(WORKDIR,"04aln_downsample/{case}-downsample.sorted.bam")
     output:
         bed = os.path.join(WORKDIR,"09peak_macs2/{case}_vs_{control}_macs2_peaks.xls"),
-        broad = os.path.join(WORKDIR,"09peak_macs2/{case}_vs_{control}_macs2_peaks.broadPeak"),
-        control = temp(os.path.join(WORKDIR,"09peak_macs2/{case}_vs_{control}_macs2_control_lambda.bdg")),
-        treat = temp(os.path.join(WORKDIR,"09peak_macs2/{case}_vs_{control}_macs2_treat_pileup.bdg"))
+        broad = os.path.join(WORKDIR,"09peak_macs2/{case}_vs_{control}_macs2_peaks.broadPeak")
     log: os.path.join(WORKDIR,"00log/{case}_vs_{control}_call_peaks_macs2.log")
     params:
         name = "{case}_vs_{control}_macs2",
@@ -434,6 +435,7 @@ rule get_UCSC_bigBed:
         sed -r 's/^[0-9]|^X|^Y|^MT/chr&/g' {input} | LC_COLLATE=C sort -k1,1 -k2,2n | awk '{{if($5 > 1000) $5 = 1000}}; {{print $0}}' > {params.bed1}
         ./bedToBigBed {params.bed1} ~/genome_size_UCSC_compatible_GRCh37.75.txt {output} -type=bed6+3
         """
+        
 rule get_UCSC_hub:
     input:  
         bed = ALL_BROADPEAK,
@@ -441,7 +443,7 @@ rule get_UCSC_hub:
     params:
         output_dir = os.path.join(WORKDIR,"HUB/"),
         sample_name = list(SAMPLES.keys()),
-        categories = list(MARKS.keys()).remove(CONTROL)
+        categories = MARKS_NO_CONTROL
     conda:
         "envs/trackhub.yml"
     shell:
