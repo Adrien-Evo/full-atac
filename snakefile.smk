@@ -315,7 +315,7 @@ rule make_inputSubtract_bigwigs:
     message: "making input subtracted bigwig for {input}"
     shell:
         """
-        bamCompare --bamfile1 {input.case} --bamfile2 {input.control} --normalizeUsing RPKM --scaleFactorsMethod None --binSize 30 --smoothLength 300 -p 5  --extendReads 200 -o {output} 2> {log}
+        bamCompare --bamfile1 {input.case} --bamfile2 {input.control} --normalizeUsing RPKM  --operation log2 --operation first --scaleFactorsMethod None --binSize 30 --smoothLength 300 -p 5  --extendReads 200 -o {output} 2> {log}
         """
 
 rule make_bigwigs:
