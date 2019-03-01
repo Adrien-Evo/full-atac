@@ -13,7 +13,7 @@ import trackhub
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--hub_name", help="Required. the name of your track hub")
-parser.add_argument("--sample_name",nargs='+', help="Required. name of yout sample")
+parser.add_argument("--sample_name",nargs='+', help="Required. name of your samples")
 parser.add_argument("--bw", nargs='+', help = "BigWig files to be added to the hub")
 parser.add_argument("--peaks", nargs = '+', help = "Called peaks in bed format")
 parser.add_argument("--categories", nargs='+', help= "TF or Histone marks. If provided, file names will be searched for pattern provided by this option. Then tracks will be aggregated based on those categories")
@@ -29,6 +29,19 @@ args = parser.parse_args()
 #assert args.email is not None, "please provide your email"
 #assert args.input_dir is not None, "please provide the path to the bigwig and bigbed files on your local computer"
 
+
+
+
+
+# First we initialize the components of a track hub
+hub, genomes_file, genome, trackdb = trackhub.default_hub(
+    hub_name=args.hub_name,
+    short_label=args.hub_name,
+    long_label=args.hub_name,
+    genome="hg19",
+    email="adrien.foucal@univ-nantes.fr")
+
+####Definition of subgroup from filename
 def subgroups_from_filename(fn):
     """
     This functions figures out subgroups based on the filename and the provided 
@@ -37,7 +50,7 @@ def subgroups_from_filename(fn):
     to the composite track, and values are keys of the `mapping` attribute of 
     that same subgroup.
 
-    An example return value from this function would be::
+    An example return value from this function would be:
         {'track': 'signal', 'samp': 'DC1077', 'cat' = 'H3K27'}
     """
     track_subgroup = {}
@@ -47,31 +60,44 @@ def subgroups_from_filename(fn):
     else:
         track_subgroup['track']= 'peak'
 
-    ##Checking the file name for the porivded samp
+    ##Checking the file name for the provided samp
     for sample_name in args.sample_name:
         if sample_name in fn:
             track_subgroup['samp'] = sample_name
 
-    for category in args.categories:
-        if category in fn:
-            track_subgroup['cat'] = category
-    print(track_subgroup)
+    if args.categories is not None :
+        for category in args.categories:
+            if category in fn:
+                track_subgroup['cat'] = category
+    
     return track_subgroup
 
-# First we initialize the components of a track hub
-hub, genomes_file, genome, trackdb = trackhub.default_hub(
-    hub_name=args.hub_name,
-    short_label=args.hub_name,
-    long_label=args.hub_name,
-    genome="hg19",
-    email="dalerr@niddk.nih.gov")
+def simplify_filename(fn):
+    """
+    This functions simplify the file name to sampleName_Mark and ensurethere's no  trailing characters, based on sample name and mark/TF argumentsfilename and the provided
+    """
+
+    simplifiedName=""
+    ##Checking the file name for the provided samp
+    for sample_name in args.sample_name:
+        if sample_name in fn:
+            simplifiedName = simplifiedName + sample_name
+    
+    if args.categories is not None :
+        simplifiedName = simplifiedName + "_"
+        for category in args.categories:
+            #This is not ideal in a context where it's not used in a the pipeline
+            category_string = "_"+category +"_"
+            if category in fn:
+                simplifiedName = simplifiedName +  category
+    
+    return simplifiedName
 
 # Sample subgroup
-
 dict_sample_name = {args.sample_name[i]: args.sample_name[i] for i in range(len(args.sample_name))}
-dict_categories = {args.categories[i]: args.categories[i] for i in range(len(args.categories))}
-print(dict_sample_name)
-print(dict_categories)
+if args.categories is not None :
+    dict_categories = {args.categories[i]: args.categories[i] for i in range(len(args.categories))}
+
 
 ##Subgroup definition
 subgroups = [
@@ -88,13 +114,17 @@ subgroups = [
         name='samp',
         label='Sample_Name',
         mapping=dict_sample_name
-    ),
-    trackhub.SubGroupDefinition(
-        name='cat',
-        label='Categories',
-        mapping=dict_categories
     )
 ]
+
+if args.categories is not None :
+    subgroups.append(
+        trackhub.SubGroupDefinition(
+            name='cat',
+            label='Categories',
+            mapping=dict_categories
+        )
+    )
 
 #####Composite track using the different subgroup
 composite = trackhub.CompositeTrack(
@@ -109,13 +139,14 @@ composite = trackhub.CompositeTrack(
     filterComposite='dimA',
 
     sortOrder='samp=+ cat=- track=+',
-    # The availalbe options here are the `name` attributes of each subgroup.
+    # The available options here are the `name` attributes of each subgroup.
     tracktype='bigWig',
     visibility='full',
 )
 
 composite.add_subgroups(subgroups)
 trackdb.add_tracks(composite)
+
 # CompositeTracks compose different ViewTracks. We'll make one ViewTrack
 # for signal, and one for bigBed regions.
 signal_view = trackhub.ViewTrack(
@@ -138,14 +169,14 @@ if args.peaks is not None:
 # These need to be added to the composite.
 composite.add_view(signal_view)
 
+##Gogin through all big wigs files and adding them to the composite track
 for bigwig in args.bw:
     track = trackhub.Track(
-        name=trackhub.helpers.sanitize(os.path.basename(bigwig)),
+        name=simplify_filename(os.path.basename(bigwig))+"_signal",
         source=bigwig,
         visibility='full',
         tracktype='bigWig',
-        viewLimits='-4:4',
-        maxHeightPixels='8:50:128',
+        autoScale='on',
         subgroups=subgroups_from_filename(bigwig),
     )
     # Note that we add the track to the *view* rather than the trackDb as
@@ -157,10 +188,11 @@ for bigwig in args.bw:
 if args.peaks is not None:
     for bigbed in args.peaks:
         track = trackhub.Track(
-            name=trackhub.helpers.sanitize(os.path.basename(bigbed)),
+            name=simplify_filename(os.path.basename(bigbed)) + "_peaks",
             source=bigbed,
             tracktype='bigBed',
             visibility='dense',
+            autoScale='on',
             subgroups=subgroups_from_filename(bigbed),
             )
         regions_view.add_tracks(track)
@@ -184,7 +216,6 @@ if args.categories is not None :
         aggregate='transparentOverlay',
         visibility='full',
         tracktype='bigWig',
-        viewLimits='-10:10',
         maxHeightPixels='8:80:128',
         showSubtrackColorOnUi='on',
         name=category)
@@ -196,12 +227,12 @@ if args.categories is not None :
         
         #Now let slooks at the big wig files added and look for the category pattern and add them to the overlay track
         #category string uses the "_" from the main snakemake file that defines samples based on {sample}_{marks}.
+        #This is not ideal in a context where it's not used in a the pipeline
         category_string = "_"+category +"_"
-
         for bigwig in args.bw :
             if category_string in bigwig:
 
-                name = trackhub.helpers.sanitize(os.path.basename(bigwig)) + 'agg'
+                name = simplify_filename(os.path.basename(bigwig)) + '_agg'
                 track = trackhub.Track(
                     name=name,          # track names can't have any spaces or special chars.
                     source= bigwig,      # filename to build this track from

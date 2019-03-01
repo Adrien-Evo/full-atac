@@ -9,6 +9,7 @@ configfile: "config_all.yaml"
 localrules: all
 # localrules will let the rule run locally rather than submitting to cluster
 # computing nodes, this is for very small jobs
+PROJECT_NAME = config['PROJECT_NAME']
 
 # load cluster config file
 CLUSTER = json.load(open(config['CLUSTER_JSON']))
@@ -83,10 +84,9 @@ CASE_BAM = expand(os.path.join(WORKDIR,"03aln/{sample}.sorted.bam"), sample=CASE
 
 ## peaks and bigwigs
 ALL_PEAKS = []
-ALL_inputSubtract_BIGWIG = []
 ALL_SUPER = []
 ALL_BROADPEAK = []
-ALL_BIGWIGUCSC = []
+ALL_BIGWIG_UCSC = []
 ALL_COMPUTEMATRIX = []
 ALL_PLOTS = []
 
@@ -98,10 +98,9 @@ for case in CASES:
         ALL_PEAKS.append(os.path.join(WORKDIR,"08peak_macs1/{}_vs_{}_macs1_nomodel_peaks.bed").format(case, control))
         ALL_PEAKS.append(os.path.join(WORKDIR,"09peak_macs2/{}_vs_{}_macs2_peaks.xls").format(case, control))
         ALL_PEAKS.append(os.path.join(WORKDIR,"09peak_macs2/{}_vs_{}_macs2_peaks.broadPeak").format(case, control))
-        ALL_inputSubtract_BIGWIG.append(os.path.join(WORKDIR,"06bigwig_inputSubtract/{}_subtract_{}.bw").format(case, control))
         ALL_SUPER.append(os.path.join(WORKDIR,"11superEnhancer/{}_vs_{}-super/").format(case, control))
         ALL_BROADPEAK.append(os.path.join(WORKDIR,"12UCSC_broad/{}_vs_{}_macs2_peaks.broadPeak").format(case, control))
-        ALL_BIGWIGUCSC.append(os.path.join(WORKDIR,"UCSC_compatible_bigWig/{}_subtract_{}.bw").format(case,control))
+        ALL_BIGWIG_UCSC.append(os.path.join(WORKDIR,"UCSC_compatible_bigWig/{}_vs_{}.bw").format(case,control))
 
 
 ALL_SAMPLES = CASES + CONTROLS_UNIQUE
@@ -131,13 +130,12 @@ TARGETS.extend(ALL_INDEX)
 TARGETS.extend(ALL_PHANTOM)
 TARGETS.extend(ALL_PEAKS)
 TARGETS.extend(ALL_BIGWIG)
-TARGETS.extend(ALL_inputSubtract_BIGWIG)
 TARGETS.extend(ALL_FASTQ)
 TARGETS.extend(ALL_FLAGSTAT)
 TARGETS.extend(ALL_QC)
 TARGETS.extend(ALL_SUPER)
 TARGETS.extend(ALL_BROADPEAK)
-TARGETS.extend(ALL_BIGWIGUCSC)
+TARGETS.extend(ALL_BIGWIG_UCSC)
 TARGETS.extend(ALL_COMPUTEMATRIX)
 TARGETS.extend(ALL_PLOTS)
 
@@ -302,12 +300,12 @@ rule down_sample:
         samtools index {output.bam}
         """
 
-rule make_inputSubtract_bigwigs:
+rule make_case_control_bigwigs:
     input : 
         control = os.path.join(WORKDIR,"04aln_downsample/{control}-downsample.sorted.bam"),
         case =  os.path.join(WORKDIR,"04aln_downsample/{case}-downsample.sorted.bam")
-    output:  os.path.join(WORKDIR,"06bigwig_inputSubtract/{case}_subtract_{control}.bw")
-    log: os.path.join(WORKDIR,"00log/{case}_{control}inputSubtract.makebw")
+    output:  os.path.join(WORKDIR,"06bigwig_case_vs_control/{case}_vs_{control}.bw")
+    log: os.path.join(WORKDIR,"00log/{case}_vs_{control}.makebw")
     threads: 5
     conda:
         "envs/deeptools.yml"
@@ -316,6 +314,20 @@ rule make_inputSubtract_bigwigs:
     shell:
         """
         bamCompare --bamfile1 {input.case} --bamfile2 {input.control} --normalizeUsing RPKM  --operation log2 --operation first --scaleFactorsMethod None --binSize 30 --smoothLength 300 -p 5  --extendReads 200 -o {output} 2> {log}
+        """
+rule make_case_control_UCSC_bigwig:
+    input : os.path.join(WORKDIR,"06bigwig_case_vs_control/{case}_vs_{control}.bw")
+    output : os.path.join(WORKDIR,"UCSC_compatible_bigWig/{case}_vs_{control}.bw")
+    params : 
+        wig1 = temp(os.path.join(WORKDIR,"06bigwig_inputSubtract/{case}_vs_{control}_temp.wig")),
+        wig2 = temp(os.path.join(WORKDIR,"06bigwig_inputSubtract/{case}_vs_{control}_temp2.wig"))
+    conda:
+        "envs/ucsc-utilities.yml"
+    shell:
+        """
+        ./bigWigToWig {input} {params.wig1}
+        sed -r 's/^[0-9]|^X|^Y|^MT/chr&/g' {params.wig1} | LC_COLLATE=C sort -k1,1 -k2,2n > {params.wig2}
+        ./wigToBigWig {params.wig2} ~/genome_size_UCSC_compatible_GRCh37.75.txt {output}
         """
 
 rule make_bigwigs:
@@ -353,20 +365,7 @@ rule plotHeatmap:
         plotHeatmap -m {input} -out {output} --yMin 0 --yMax 10
         """
 
-rule get_UCSC_bigwig:
-    input : os.path.join(WORKDIR,"06bigwig_inputSubtract/{case}_subtract_{control}.bw")
-    output : os.path.join(WORKDIR,"UCSC_compatible_bigWig/{case}_subtract_{control}.bw")
-    params : 
-        wig1 = os.path.join(WORKDIR,"06bigwig_inputSubtract/{case}_subtract_{control}_temp.wig"),
-        wig2 = os.path.join(WORKDIR,"06bigwig_inputSubtract/{case}_subtract_{control}_temp2.wig")
-    conda:
-        "envs/ucsc-utilities.yml"
-    shell:
-        """
-        ./bigWigToWig {input} {params.wig1}
-        sed -r 's/^[0-9]|^X|^Y|^MT/chr&/g' {params.wig1} | LC_COLLATE=C sort -k1,1 -k2,2n > {params.wig2}
-        ./wigToBigWig {params.wig2} ~/genome_size_UCSC_compatible_GRCh37.75.txt {output}
-        """
+
 
 rule call_peaks_macs1:
     input: 
@@ -436,19 +435,20 @@ rule get_UCSC_bigBed:
         ./bedToBigBed {params.bed1} ~/genome_size_UCSC_compatible_GRCh37.75.txt {output} -type=bed6+3
         """
         
-rule get_UCSC_hub:
+rule make_UCSC_hub:
     input:  
         bed = ALL_BROADPEAK,
-        bigwig = ALL_BIGWIGUCSC
+        bigwig = ALL_BIGWIG_UCSC
     params:
         output_dir = os.path.join(WORKDIR,"HUB/"),
         sample_name = list(SAMPLES.keys()),
         categories = MARKS_NO_CONTROL
+    log: os.path.join(WORKDIR,"00log/make_UCSC_hub.log")
     conda:
         "envs/trackhub.yml"
     shell:
         """
-        python3 scripts/makeUCSCtrackHub.py --hub_name test --sample_name {params.sample_name} --categories {params.categories} --output_dir {params.output_dir} --peaks {input.bed} --bw {input.bigwig} 2> makehub.err
+        python3 scripts/makeUCSCtrackHub.py --hub_name {PROJECT_NAME} --sample_name {params.sample_name} --categories {params.categories} --output_dir {params.output_dir} --peaks {input.bed} --bw {input.bigwig} &> {log}
         """
 
 

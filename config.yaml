@@ -1,4 +1,4 @@
-
+project_name: allsamples
 idx_bt1: /scratch/genomic_med/apps/annot/indexes/bowtie/hg19
 macs_g: hs
 macs_pvalue: 1e-5
