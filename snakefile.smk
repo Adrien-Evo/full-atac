@@ -469,24 +469,3 @@ rule multiQC:
         """
         multiqc {input} -o {params} -d -f -v -n multiQC_log 2> {log}
         """
-
-## ROSE has to be run inside the folder where ROSE_main.py resides.
-## symbolic link the rose folder to the snakefile folder can be one alternative solution.
-rule superEnhancer:
-    input : 
-        os.path.join(WORKDIR,"04aln_downsample/{control}-downsample.sorted.bam"), 
-        os.path.join(WORKDIR,"04aln_downsample/{case}-downsample.sorted.bam"),
-        os.path.join(WORKDIR,"04aln_downsample/{control}-downsample.sorted.bam.bai"),
-        os.path.join(WORKDIR,"04aln_downsample/{case}-downsample.sorted.bam.bai"),
-        os.path.join(WORKDIR,"08peak_macs1/{case}_vs_{control}_macs1_peaks.bed")
-    output: directory(os.path.join(WORKDIR,"11superEnhancer/{case}_vs_{control}-super/"))
-    log: os.path.join(WORKDIR,"00log/{case}_{control}superEnhancer.log")
-    threads: 4
-    params:
-            jobname = "{case}"
-    shell:
-        """
-        source activate macs
-        cd {ROSE_FOLDER}
-        python ROSE_main.py -g {config[rose_g]} -i {input[4]} -r {input[1]} -c {input[0]} -o {output}
-        """

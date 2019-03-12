@@ -1,0 +1,40 @@
+PROJECT_NAME: 'test'
+idx_bt1: '/sandbox/resources/species/human/ensembl/release-75/index-bowtie-2.3.0/Homo_sapiens.GRCh37.75.dna.toplevel'
+macs_g: hs
+macs_pvalue: 1e-5
+macs2_g: hs
+macs2_pvalue: 1e-5
+macs2_pvalue_broad: 1e-5
+
+control: 'Input'
+#superEnhancer genome
+
+#number of reads downsample to, I set to 50 million, if reads number smaller than
+## 50 million, downsample will keep the orignal reads
+target_reads: 30000000
+
+##TSS file for QC
+tss_bed: 'hg19TSSUCSCGene.bed'
+
+## run chromHMM or not
+chromHMM: False
+
+##chromHMM bin size
+binsize: 200
+#chromatin state model
+state: 15
+##chromHMM genome
+chromHmm_g : hg19
+
+## histone marks that you want to include in the chromHMM model
+## space delimited. entries should be from the third column of the meta.txt file fed
+## into the samples2json.py file.
+
+histone_for_chromHMM: "K4me1 K4me3 K27ac K27me3"
+
+# Path to a JSON file with samples and their corresponding FASTQ files.
+SAMPLES: './meta.txt'
+SAMPLES_JSON: './samples_w_input.json'
+
+CLUSTER_JSON: './cluster.json'
+OUTPUT_DIR: './out'
