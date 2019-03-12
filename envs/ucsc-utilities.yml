@@ -1,0 +1,21 @@
+name: UCSC-utilities
+channels:
+  - bioconda
+  - conda-forge
+  - defaults
+dependencies:
+  - mysql-connector-c=6.1.6=2
+  - ucsc-bedtobigbed=366=hdd26221_0
+  - ucsc-bigwigaverageoverbed=366=hdd26221_0
+  - ucsc-bigwigtowig=366=hdd26221_0
+  - ucsc-wigtobigwig=366=hdd26221_0
+  - ca-certificates=2018.11.29=ha4d7672_0
+  - libgcc=7.2.0=h69d50b8_2
+  - libgcc-ng=7.3.0=hdf63c60_0
+  - libpng=1.6.36=h84994c4_1000
+  - libstdcxx-ng=7.3.0=hdf63c60_0
+  - libuuid=2.32.1=h14c3975_1000
+  - openssl=1.0.2p=h14c3975_1002
+  - zlib=1.2.11=h14c3975_1004
+prefix: /sandbox/users/foucal-a/miniconda3/envs/UCSC-utilities
+
