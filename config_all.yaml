@@ -17,20 +17,20 @@ target_reads: 30000000
 tss_bed: 'hg19TSSUCSCGene.bed'
 
 ## run chromHMM or not
-chromHMM: False
+chromHMM: True
 
 ##chromHMM bin size
 binsize: 200
 #chromatin state model
-state: 15
+state: 7
 ##chromHMM genome
-chromHmm_g : hg19
+chromHmm_g : /sandbox/users/foucal-a/genome_size_GRCh37.75.txt
 
 ## histone marks that you want to include in the chromHMM model
 ## space delimited. entries should be from the third column of the meta.txt file fed
 ## into the samples2json.py file.
 
-histone_for_chromHMM: "K4me1 K4me3 K27ac K27me3"
+histone_for_chromHMM: "H3K4me1 H3K4me3 H3K27 H3K27me3"
 
 # Path to a JSON file with samples and their corresponding FASTQ files.
 SAMPLES: './meta.txt'

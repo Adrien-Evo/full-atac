@@ -13,7 +13,6 @@ localrules: all
 # load cluster config file
 CLUSTER = json.load(open(config['CLUSTER_JSON']))
 FILES = json.load(open(config['SAMPLES_JSON']))
-ROSE_FOLDER = config['rose_folder']
 TSS_BED = config['tss_bed']
 WORKDIR = os.path.abspath(config["OUTPUT_DIR"])
 PROJECT_NAME = config['PROJECT_NAME']
@@ -141,22 +140,24 @@ TARGETS.extend(ALL_BIGWIGUCSC)
 TARGETS.extend(ALL_COMPUTEMATRIX)
 TARGETS.extend(ALL_PLOTS)
 
-
-
-
-## sometimes if if you have TF ChIP-seq data, do not include it to chromHMM, or you want
-## only a subset of the histone marks be included in the chromHMM call
-
 if config["chromHMM"]:
+
+    def get_chr(chromSize):
+        with open(chromSize,'r') as fs:
+            chr = [line.rstrip().split('\t')[0] for line in fs]
+            return(chr)
+
     HISTONE_INCLUDED = config["histone_for_chromHMM"].split(" ")
-    HISTONE_CASES = [sample for sample in MARK_SAMPLES if sample.split("_")[-1] in HISTONE_INCLUDED ]
-    ALL_BED = expand(os.path.join(WORKDIR,"12bed/{sample}.bed"), sample = HISTONE_CASES + CONTROLS)
-    CHROMHMM = [os.path.join(WORKDIR,"13chromHMM/MYOUTPUT"), os.path.join(WORKDIR,"13chromHMM/binarizedData")]
-    CHROMHMM_TABLE = [os.path.join(WORKDIR,"12bed/cellmarkfiletable.txt")]
+    HISTONE_CASES = [sample for sample in CASES if sample.split("_")[-1] in HISTONE_INCLUDED ]
+    HISTONE_SAMPLE = list(set([sample.split("_")[0] for sample in CASES if sample.split("_")[-1] in HISTONE_INCLUDED ]))
+    ALL_BED = expand(os.path.join(WORKDIR,"bamtobed/{sample}.bed"), sample = HISTONE_CASES)
+    CHROMHMM = expand(os.path.join(WORKDIR,"chromHMM/results/{sample}_{nb_state}_segments.bed"),sample = HISTONE_SAMPLE,nb_state=config["state"])
+    print(CHROMHMM)
+    CHRHMM = get_chr(config['chromHmm_g'])
+    CHROMHMM_TABLE = [os.path.join(WORKDIR,"chromHMM/cellmarkfiletable.txt")]
     TARGETS.extend(ALL_BED)
     TARGETS.extend(CHROMHMM)
     TARGETS.extend(CHROMHMM_TABLE)
-
 
 localrules: all
 rule all:
@@ -469,3 +470,78 @@ rule multiQC:
         """
         multiqc {input} -o {params} -d -f -v -n multiQC_log 2> {log}
         """
+
+
+if config["chromHMM"]:
+    rule bam2bed:
+        input :
+            os.path.join(WORKDIR,"04aln_downsample/{sample}-downsample.sorted.bam")
+        output:
+            os.path.join(WORKDIR,"bamtobed/{sample}.bed")
+        params: jobname = "{sample}"
+        log: os.path.join(WORKDIR,"00log/{sample}_bam2bed.log")
+        message: "converting bam to bed for {input}"
+        conda:
+            "envs/chromhmm.yml"
+        shell:
+            """
+            bedtools bamtobed -i {input} > {output}
+            """
+
+if config["chromHMM"]:
+    rule make_table:
+        input : 
+            expand(os.path.join(WORKDIR,"bamtobed/{sample}.bed"), sample = HISTONE_CASES)
+        output : 
+            os.path.join(WORKDIR,"chromHMM/cellmarkfiletable.txt")
+        log: os.path.join(WORKDIR,"00log/make_table_chromHMM.log")
+        message: "making a table for chromHMM"
+        run:
+            import os
+            from os.path import join
+            with open (output[0], "w") as f:
+                for case in HISTONE_CASES:
+                    sample = "_".join(case.split("_")[0:-1])
+                    mark = case.split("_")[-1]
+                    control = sample + "_" + CONTROL
+                    case_bed = case + ".bed"
+                    if os.path.exists(join(os.path.join(WORKDIR,"bamtobed"), case_bed)):
+                        f.write(sample + "\t" +  mark + "\t" + case + ".bed" + "\t" + control + ".bed" + "\n")
+if config["chromHMM"]:
+    rule chromHMM_binarize:
+        input :
+            cellmarkfiletable = os.path.join(WORKDIR,"chromHMM/cellmarkfiletable.txt"),
+            beds = expand(os.path.join(WORKDIR,"bamtobed/{sample}.bed"), sample = HISTONE_CASES)
+        output:
+            expand(os.path.join(WORKDIR,"chromHMM/binarizedData/{sample}_{chr}_binary.txt"), sample = HISTONE_SAMPLE, chr=CHRHMM)
+        log:
+            os.path.join(WORKDIR,"00log/chromhmm_bin.log")
+        params:
+            folder = os.path.join(WORKDIR,"chromHMM/binarizedData/"),
+            bamtobed_folder = os.path.join(WORKDIR,"bamtobed/"),
+            memory = "32G"
+        conda:
+            "envs/chromhmm.yml"
+        shell:
+            """
+            ChromHMM.sh -Xmx{params.memory} BinarizeBed -b {config[binsize]} {config[chromHmm_g]} {params.bamtobed_folder} {input.cellmarkfiletable} {output.folder} 2> {log}
+            """
+
+if config["chromHMM"]:
+    print(CHROMHMM)
+    rule chromHMM_learn:
+        input:
+            expand(os.path.join(WORKDIR,"chromHMM/binarizedData/{sample}_{chr}_binary.txt"), sample = HISTONE_SAMPLE, chr=CHRHMM)
+        output: 
+            expand(os.path.join(WORKDIR,"chromHMM/results/{sample}_{nb_state}_segments.bed"),sample = HISTONE_SAMPLE,nb_state=config["state"])
+        log: os.path.join(WORKDIR,"00log/chromhmm_learn.log")
+        params:
+            input_folder = os.path.join(WORKDIR,"chromHMM/binarizedData/"),
+            output_folder = os.path.join(WORKDIR,"chromHMM/results/"),
+            memory = "32G"
+        conda:
+            "envs/chromhmm.yml"
+        shell:
+            """
+            unset DISPLAY && ChromHMM.sh -Xmx{params.memory} LearnModel -p 0 -b {config[binsize]} {params.input_folder} {params.output_folder} {config[state]} {config[chromHmm_g]} 2> {log}
+            """
