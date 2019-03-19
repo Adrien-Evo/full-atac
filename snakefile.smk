@@ -151,8 +151,7 @@ if config["chromHMM"]:
     HISTONE_CASES = [sample for sample in CASES if sample.split("_")[-1] in HISTONE_INCLUDED ]
     HISTONE_SAMPLE = list(set([sample.split("_")[0] for sample in CASES if sample.split("_")[-1] in HISTONE_INCLUDED ]))
     ALL_BED = expand(os.path.join(WORKDIR,"bamtobed/{sample}.bed"), sample = HISTONE_CASES)
-    CHROMHMM = expand(os.path.join(WORKDIR,"chromHMM/results/{sample}_{nb_state}_segments.bed"),sample = HISTONE_SAMPLE,nb_state=config["state"])
-    print(CHROMHMM)
+    CHROMHMM = expand(os.path.join(WORKDIR,"chromHMM/learn_{nb_state}_states/{sample}_{nb_state}_segments.bed"),sample = HISTONE_SAMPLE,nb_state=config["state"])
     CHRHMM = get_chr(config['chromHmm_g'])
     CHROMHMM_TABLE = [os.path.join(WORKDIR,"chromHMM/cellmarkfiletable.txt")]
     TARGETS.extend(ALL_BED)
@@ -528,16 +527,15 @@ if config["chromHMM"]:
             """
 
 if config["chromHMM"]:
-    print(CHROMHMM)
     rule chromHMM_learn:
         input:
             expand(os.path.join(WORKDIR,"chromHMM/binarizedData/{sample}_{chr}_binary.txt"), sample = HISTONE_SAMPLE, chr=CHRHMM)
         output: 
-            expand(os.path.join(WORKDIR,"chromHMM/results/{sample}_{nb_state}_segments.bed"),sample = HISTONE_SAMPLE,nb_state=config["state"])
+            expand(os.path.join(WORKDIR,"chromHMM/learn_{nb_state}_states/{sample}_{nb_state}_segments.bed"),sample = HISTONE_SAMPLE,nb_state=config["state"])
         log: os.path.join(WORKDIR,"00log/chromhmm_learn.log")
         params:
             input_folder = os.path.join(WORKDIR,"chromHMM/binarizedData/"),
-            output_folder = os.path.join(WORKDIR,"chromHMM/results/"),
+            output_folder = expand(os.path.join(WORKDIR,"chromHMM/learn_{nb_state}_states/"),nb_state=config["state"]),
             memory = "32G"
         conda:
             "envs/chromhmm.yml"

@@ -22,7 +22,7 @@ chromHMM: True
 ##chromHMM bin size
 binsize: 200
 #chromatin state model
-state: 7
+state: 9
 ##chromHMM genome
 chromHmm_g : /sandbox/users/foucal-a/genome_size_GRCh37.75.txt
 
