@@ -386,7 +386,6 @@ rule call_peaks_macs1:
     message: "call_peaks macs14 {input}: {threads} threads"
     shell:
         """
-        source activate macs
         macs -t {input.case} \
             -c {input.control} --keep-dup all -f BAM -g {config[macs_g]} \
             --outdir {params.outdir} -n {params.name1} --single-profile -p {config[macs_pvalue]} &> {log.macs1}
