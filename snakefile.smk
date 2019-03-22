@@ -83,7 +83,6 @@ CASE_BAM = expand(os.path.join(WORKDIR,"03aln/{sample}.sorted.bam"), sample=CASE
 ## peaks and bigwigs
 ALL_PEAKS = []
 ALL_inputSubtract_BIGWIG = []
-ALL_SUPER = []
 ALL_BROADPEAK = []
 ALL_BIGWIGUCSC = []
 ALL_COMPUTEMATRIX = []
@@ -98,7 +97,6 @@ for case in CASES:
         ALL_PEAKS.append(os.path.join(WORKDIR,"09peak_macs2/{}_vs_{}_macs2_peaks.xls").format(case, control))
         ALL_PEAKS.append(os.path.join(WORKDIR,"09peak_macs2/{}_vs_{}_macs2_peaks.broadPeak").format(case, control))
         ALL_inputSubtract_BIGWIG.append(os.path.join(WORKDIR,"06bigwig_inputSubtract/{}_subtract_{}.bw").format(case, control))
-        ALL_SUPER.append(os.path.join(WORKDIR,"11superEnhancer/{}_vs_{}-super/").format(case, control))
         ALL_BROADPEAK.append(os.path.join(WORKDIR,"12UCSC_broad/{}_vs_{}_macs2_peaks.broadPeak").format(case, control))
         ALL_BIGWIGUCSC.append(os.path.join(WORKDIR,"UCSC_compatible_bigWig/{}_subtract_{}.bw").format(case,control))
 
@@ -134,7 +132,6 @@ TARGETS.extend(ALL_inputSubtract_BIGWIG)
 TARGETS.extend(ALL_FASTQ)
 TARGETS.extend(ALL_FLAGSTAT)
 TARGETS.extend(ALL_QC)
-TARGETS.extend(ALL_SUPER)
 TARGETS.extend(ALL_BROADPEAK)
 TARGETS.extend(ALL_BIGWIGUCSC)
 TARGETS.extend(ALL_COMPUTEMATRIX)
