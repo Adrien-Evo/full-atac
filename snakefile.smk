@@ -270,7 +270,7 @@ rule phantom_peak_qual:
     log: os.path.join(WORKDIR,"00log/{sample}_phantompeakqual.log")
     threads: 4
     conda:
-        "envs/phantompeakqualtools.yml"
+        "envs/spp.yml"
     params: os.path.join(WORKDIR,"05phantompeakqual/")
     message: "phantompeakqual for {input}"
     shell:
@@ -360,9 +360,9 @@ rule get_UCSC_bigwig:
         "envs/ucsc-utilities.yml"
     shell:
         """
-        ./bigWigToWig {input} {params.wig1}
+        bigWigToWig {input} {params.wig1}
         sed -r 's/^[0-9]|^X|^Y|^MT/chr&/g' {params.wig1} | LC_COLLATE=C sort -k1,1 -k2,2n > {params.wig2}
-        ./wigToBigWig {params.wig2} ~/genome_size_UCSC_compatible_GRCh37.75.txt {output}
+        wigToBigWig {params.wig2} ~/genome_size_UCSC_compatible_GRCh37.75.txt {output}
         """
 
 rule call_peaks_macs1:
@@ -429,7 +429,7 @@ rule get_UCSC_bigBed:
     shell:
         """
         sed -r 's/^[0-9]|^X|^Y|^MT/chr&/g' {input} | LC_COLLATE=C sort -k1,1 -k2,2n | awk '{{if($5 > 1000) $5 = 1000}}; {{print $0}}' > {params.bed1}
-        ./bedToBigBed {params.bed1} ~/genome_size_UCSC_compatible_GRCh37.75.txt {output} -type=bed6+3
+        bedToBigBed {params.bed1} ~/genome_size_UCSC_compatible_GRCh37.75.txt {output} -type=bed6+3
         """
         
 rule get_UCSC_hub:
