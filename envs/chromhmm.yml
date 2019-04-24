@@ -1,0 +1,12 @@
+name: chromhmm
+channels:
+  - bioconda
+  - conda-forge
+  - defaults
+dependencies:
+  - bedtools=2.27.1=he860b03_3
+  - libgcc-ng=7.3.0=hdf63c60_0
+  - libstdcxx-ng=7.3.0=hdf63c60_0
+  - zlib=1.2.11=h14c3975_1004
+prefix: /sandbox/users/foucal-a/miniconda3/envs/chromhmm
+
