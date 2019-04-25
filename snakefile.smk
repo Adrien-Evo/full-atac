@@ -172,8 +172,6 @@ rule merge_fastqs:
     output: os.path.join(WORKDIR,"01seq/{sample}.fastq")
     log: os.path.join(WORKDIR,"00log/{sample}_unzip")
     threads: CLUSTER["merge_fastqs"]["cpu"]
-    conda:
-        "envs/chipseq-qc.yml"
     params: jobname = "{sample}"
     message: "merging fastqs gunzip -c {input} > {output}"
     shell: "gunzip -c {input} > {output} 2> {log}"
@@ -184,7 +182,7 @@ rule fastqc:
     log:    os.path.join(WORKDIR,"00log/{sample}_fastqc")
     threads: CLUSTER["fastqc"]["cpu"]
     conda:
-        "envs/chipseq-qc.yml"
+        "envs/multifastqc.yml"
     params :
         output_dir = os.path.join(WORKDIR,"02fqc")
     message: "fastqc {input}: {threads}"
@@ -458,7 +456,7 @@ rule multiQC:
     output: os.path.join(WORKDIR,"10multiQC/multiQC_log.html")
     params: os.path.join(WORKDIR,"10multiQC/")
     conda:
-        "envs/chipseq-qc.yml"
+        "envs/multifastqc.yml"
     log: os.path.join(WORKDIR,"00log/multiqc.log")
     message: "multiqc for all logs"
     shell:
@@ -483,7 +481,6 @@ if config["chromHMM"]:
             bedtools bamtobed -i {input} > {output}
             """
 
-if config["chromHMM"]:
     rule make_table:
         input : 
             expand(os.path.join(WORKDIR,"bamtobed/{sample}.bed"), sample = HISTONE_CASES)
@@ -502,7 +499,7 @@ if config["chromHMM"]:
                     case_bed = case + ".bed"
                     if os.path.exists(join(os.path.join(WORKDIR,"bamtobed"), case_bed)):
                         f.write(sample + "\t" +  mark + "\t" + case + ".bed" + "\t" + control + ".bed" + "\n")
-if config["chromHMM"]:
+
     rule chromHMM_binarize:
         input :
             cellmarkfiletable = os.path.join(WORKDIR,"chromHMM/cellmarkfiletable.txt"),
@@ -519,10 +516,9 @@ if config["chromHMM"]:
             "envs/chromhmm.yml"
         shell:
             """
-            ChromHMM.sh -Xmx{params.memory} BinarizeBed -b {config[binsize]} {config[chromHmm_g]} {params.bamtobed_folder} {input.cellmarkfiletable} {output.folder} 2> {log}
+            ChromHMM.sh -Xmx{params.memory} BinarizeBed -b {config[binsize]} {config[chromHmm_g]} {params.bamtobed_folder} {input.cellmarkfiletable} {params.folder} 2> {log}
             """
 
-if config["chromHMM"]:
     rule chromHMM_learn:
         input:
             expand(os.path.join(WORKDIR,"chromHMM/binarizedData/{sample}_{chr}_binary.txt"), sample = HISTONE_SAMPLE, chr=CHRHMM)
