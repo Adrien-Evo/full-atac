@@ -22,9 +22,9 @@ chromHMM: True
 ##chromHMM bin size
 binsize: 200
 #chromatin state model
-state: 9
+state: 6
 ##chromHMM genome
-chromHmm_g : /sandbox/users/foucal-a/genome_size_GRCh37.75.txt
+chromHmm_g : /sandbox/users/foucal-a/genome_size_GRCh37.75_canonical_CHR.txt
 
 ## histone marks that you want to include in the chromHMM model
 ## space delimited. entries should be from the third column of the meta.txt file fed
