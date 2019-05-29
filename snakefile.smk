@@ -443,10 +443,10 @@ rule get_UCSC_hub:
 
 rule multiQC:
     input :
-        expand(os.path.join(WORKDIR, "00log/{sample}.align"), sample = ALL_SAMPLES), 
-        ALL_FLAGSTAT, 
-        ALL_FASTQC, 
-        ALL_PHANTOM, 
+        os.path.join(WORKDIR, "00log/"), 
+        ALL_FLAGSTAT,
+        ALL_FASTQC,
+        ALL_PHANTOM,
         ALL_DPQC
     output: os.path.join(WORKDIR, "10multiQC/multiQC_log.html")
     params: os.path.join(WORKDIR, "10multiQC/")
@@ -456,7 +456,7 @@ rule multiQC:
     message: "multiqc for all logs"
     shell:
         """
-        multiqc {input} -o {params} -d -f -v -n multiQC_log 2> {log}
+        multiqc {input} -o {params} -f -v -n multiQC_log 2> {log}
         """
 
 
