@@ -15,22 +15,23 @@ FILES = json.load(open(config['SAMPLES_JSON']))
 TSS_BED = config['tss_bed']
 WORKDIR = os.path.abspath(config["OUTPUT_DIR"])
 PROJECT_NAME = config['PROJECT_NAME']
-# # list all samples by sample_name and sample_type (sampleName_MARK is the basis of most of this pipeline atm)
+
+#  List all samples by sample_name and sample_type (sampleName_MARK is the basis of most of this pipeline atm)
 MARK_SAMPLES = []
 SAMPLES = sorted(FILES.keys())
 
-# #Create sample_Marks list for all samples
+# Create sample_Marks list for all samples
 for sample in SAMPLES:
     for sample_type in FILES[sample].keys():
         MARK_SAMPLES.append(sample + "_" + sample_type)
 
-# #Regroup Marks or TF by sample
+# Regroup Marks or TF by sample
 SAMPLES = dict()
 for sample in sorted(FILES.keys()):
     for sample_type in FILES[sample].keys():
         SAMPLES.setdefault(sample, []).append(sample_type)
 
-# #Regroup samples per marks or TF
+# Regroup samples per marks or TF
 MARKS = dict()
 for sample in sorted(FILES.keys()):
     for sample_type in FILES[sample].keys():
@@ -39,7 +40,7 @@ for sample in sorted(FILES.keys()):
 
 
 
-# #Aggregation of bigwigs by Marks or TF
+# Aggregation of bigwigs by Marks or TF
 def get_big_wig_with_mark_or_tf(wildcards):
     samples = MARKS[wildcards.mark]
     bigwigs = list()
@@ -47,7 +48,7 @@ def get_big_wig_with_mark_or_tf(wildcards):
         bigwigs.append(os.path.join(WORKDIR, "07bigwig/"+s+"_"+wildcards.mark+".bw"))
     return bigwigs
 
-# #Aggregation of bams per sample
+# Aggregation of bams per sample
 def get_bams_per_sample(wildcards):
 
     marks = SAMPLES[wildcards.samp]
@@ -56,7 +57,7 @@ def get_bams_per_sample(wildcards):
         bams.append(os.path.join(WORKDIR, "03aln/"+wildcards.samp+"_"+s+".sorted.bam"))
     return bams
 
-# #Aggregation of bam index per sample, necessary to avoid launching without bai
+# Aggregation of bam index per sample, necessary to avoid launching without bai
 def get_bam_index_per_sample(wildcards):
     marks = SAMPLES[wildcards.samp]
     bais = list()
@@ -71,15 +72,15 @@ MARKS_NO_CONTROL.remove(CONTROL)
 CONTROLS = [sample for sample in MARK_SAMPLES if CONTROL in sample]
 CASES = [sample for sample in MARK_SAMPLES if CONTROL not in sample]
 
-# # multiple samples may use the same control input/IgG files
+#  multiple samples may use the same control input/IgG files
 CONTROLS_UNIQUE = list(set(CONTROLS))
 
 
-# # list BAM files
+#  list BAM files
 CONTROL_BAM = expand(os.path.join(WORKDIR, "03aln/{sample}.sorted.bam"), sample = CONTROLS_UNIQUE)
 CASE_BAM = expand(os.path.join(WORKDIR, "03aln/{sample}.sorted.bam"), sample = CASES)
 
-# # peaks and bigwigs
+#  peaks and bigwigs
 ALL_PEAKS = []
 ALL_inputSubtract_BIGWIG = []
 ALL_BROADPEAK = []
@@ -159,13 +160,13 @@ rule all:
     input: TARGETS
 
 
-# # get a list of fastq.gz files for the same mark, same sample
+#  get a list of fastq.gz files for the same mark, same sample
 def get_fastq(wildcards):
     sample = "_".join(wildcards.sample.split("_")[0:-1])
     mark = wildcards.sample.split("_")[-1]
     return FILES[sample][mark]
 
-# # now only for single-end ChIPseq,
+#  now only for single-end ChIPseq,
 rule merge_fastqs:
     input: get_fastq
     output: os.path.join(WORKDIR, "01seq/{sample}.fastq")
@@ -459,6 +460,8 @@ rule multiQC:
         multiqc {input} -o {params} -f -v -n multiQC_log 2> {log}
         """
 
+# ChromHMM section.
+# This allow for all necessary steps for CHromHMM execution with the number of states declared in the config file 
 
 if config["chromHMM"]:
     rule bam2bed:
