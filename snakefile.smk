@@ -137,6 +137,7 @@ TARGETS.extend(ALL_BIGWIGUCSC)
 TARGETS.extend(ALL_COMPUTEMATRIX)
 TARGETS.extend(ALL_PLOTS)
 
+# Output files for ChromHMM
 if config["chromHMM"]:
 
     def get_chr(chromSize):
@@ -156,17 +157,18 @@ if config["chromHMM"]:
     TARGETS.extend(CHROMHMM_TABLE)
 
 localrules: all
+
 rule all:
     input: TARGETS
 
 
-#  get a list of fastq.gz files for the same mark, same sample
+#  Get a list of fastq.gz files for the same mark, same sample
 def get_fastq(wildcards):
     sample = "_".join(wildcards.sample.split("_")[0:-1])
     mark = wildcards.sample.split("_")[-1]
     return FILES[sample][mark]
 
-#  now only for single-end ChIPseq,
+#  Now only for single-end ChIPseq,
 rule merge_fastqs:
     input: get_fastq
     output: os.path.join(WORKDIR, "01seq/{sample}.fastq")
@@ -187,8 +189,8 @@ rule fastqc:
         fastqc -o {params.output_dir} -f fastq --noextract {input} 2> {log}
         """
 
-# get the duplicates marked sorted bam, remove unmapped reads by samtools view -F 4 and duplicated reads by samblaster -r
-# samblaster should run before samtools sort
+# Get the duplicates marked sorted bam, remove unmapped reads by samtools view -F 4 and duplicated reads by samblaster -r
+# Samblaster should run before samtools sort
 rule align:
     input:  os.path.join(WORKDIR, "01seq/{sample}.fastq")
     output: os.path.join(WORKDIR, "03aln/{sample}.sorted.bam"), os.path.join(WORKDIR, "00log/{sample}.align")
@@ -210,6 +212,7 @@ rule align:
     | samtools sort -m 8G -@ 4 -T {output[0]}.tmp -o {output[0]} 2> {log.markdup}
     """
 
+# SImply indexing bams
 rule index_bam:
     input:  os.path.join(WORKDIR, "03aln/{sample}.sorted.bam")
     output: os.path.join(WORKDIR, "03aln/{sample}.sorted.bam.bai")
@@ -224,7 +227,7 @@ rule index_bam:
         samtools index {input} 2> {log}
         """
 
-# check number of reads mapped by samtools flagstat, the output will be used for downsampling
+# Check number of reads mapped by samtools flagstat, the output will be used for downsampling
 rule flagstat_bam:
     input:  os.path.join(WORKDIR, "03aln/{sample}.sorted.bam")
     output: os.path.join(WORKDIR, "03aln/{sample}.sorted.bam.flagstat")
@@ -238,7 +241,8 @@ rule flagstat_bam:
         """
         samtools flagstat {input} > {output} 2> {log}
         """
-   
+
+# ChipSeq QCs plots from deeptools. Plotfingerprints are really usefull to see focal enrichment of your CHip-Seq enrichment
 rule plotFingerPrint:
     input: 
         bam = get_bams_per_sample, 
@@ -256,6 +260,7 @@ rule plotFingerPrint:
         plotFingerprint -b {input.bam} --plotFile {output.plot} --labels {params.labels} --region chr1 --skipZeros --numberOfSamples 100000 --minMappingQuality 30 --plotTitle {wildcards.samp} --outRawCounts {output.rawCounts} --outQualityMetrics {output.qualityMetrics}
         """
 
+# Phantompeakqualtools computes a robust fragment length using the cross correlation (xcor) metrics.
 rule phantom_peak_qual:
     input: 
         bam = os.path.join(WORKDIR, "03aln/{sample}.sorted.bam"), 
@@ -271,7 +276,7 @@ rule phantom_peak_qual:
         """
         run_spp -c={input.bam} -savp -rf -p=4 -odir={params}  -out={output} -tmpdir={params} 2> {log}
         """
-
+# Downsampling for relative comparisons of samples
 rule down_sample:
     input: 
         bam = os.path.join(WORKDIR, "03aln/{sample}.sorted.bam"), 
@@ -323,6 +328,7 @@ rule make_bigwigs:
         bamCoverage -b {input[0]} --normalizeUsing RPKM --binSize 30 --smoothLength 300 -p 5 --extendReads 200 -o {output} 2> {log}
         """
 
+# Deeptools QC
 rule computeMatrix_QC:
     input : get_big_wig_with_mark_or_tf 
     output : os.path.join(WORKDIR, "DPQC/{mark}.computeMatrix.gz")
@@ -334,6 +340,7 @@ rule computeMatrix_QC:
         computeMatrix reference-point -S {input} -R {TSS_BED} -a 3000 -b 3000 -out {output}
         """
 
+# Deeptools QC
 rule plotHeatmap:
     input :  os.path.join(WORKDIR, "DPQC/{mark}.computeMatrix.gz")
     output : os.path.join(WORKDIR, "DPQC/{mark}.plotHeatmap.png")
@@ -359,6 +366,7 @@ rule get_UCSC_bigwig:
         wigToBigWig {params.wig2} ~/genome_size_UCSC_compatible_GRCh37.75.txt {output}
         """
 
+# Peak calling using MACS
 rule call_peaks_macs1:
     input: 
         control = os.path.join(WORKDIR, "04aln_downsample/{control}-downsample.sorted.bam"), 
@@ -388,6 +396,8 @@ rule call_peaks_macs1:
             --outdir {params.outdir} -n {params.name2} --nomodel -p {config[macs_pvalue]} &> {log.macs1_nomodel}
         """
         
+
+# Peak calling using MACS 2
 
 rule call_peaks_macs2:
     input: 
@@ -425,7 +435,8 @@ rule get_UCSC_bigBed:
         sed -r 's/^[0-9]|^X|^Y|^MT/chr&/g' {input} | LC_COLLATE=C sort -k1,1 -k2,2n | awk '{{if($5 > 1000) $5=1000}}; {{print $0}}' > {params.bed1}
         bedToBigBed {params.bed1} ~/genome_size_UCSC_compatible_GRCh37.75.txt {output} -type=bed6+3
         """
-        
+
+# Creating a Hub for UCSC
 rule get_UCSC_hub:
     input:  
         bed = ALL_BROADPEAK, 
@@ -441,10 +452,10 @@ rule get_UCSC_hub:
         python3 scripts/makeUCSCtrackHub.py --hub_name {PROJECT_NAME} --sample_name {params.sample_name} --categories {params.categories} --output_dir {params.output_dir} --peaks {input.bed} --bw {input.bigwig} 2> makehub.err
         """
 
-
+# MultiQC: Takes flagstats, fastqc, phantompeakqualtools and the deeptools outputs
 rule multiQC:
     input :
-        os.path.join(WORKDIR, "00log/"), 
+        expand(os.path.join(WORKDIR, "00log/{sample}.align"), sample = ALL_SAMPLES), 
         ALL_FLAGSTAT,
         ALL_FASTQC,
         ALL_PHANTOM,
