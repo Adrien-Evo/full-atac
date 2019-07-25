@@ -122,13 +122,9 @@ ALL_QC = [os.path.join(WORKDIR, "10multiQC/multiQC_log.html")]
 
 TARGETS = []
 TARGETS.extend(ALL_FASTQC)
-TARGETS.extend(ALL_BAM)
-TARGETS.extend(ALL_DOWNSAMPLE_BAM)
-TARGETS.extend(ALL_INDEX)
 TARGETS.extend(ALL_PHANTOM)
 TARGETS.extend(ALL_PEAKS)
 TARGETS.extend(ALL_BIGWIG)
-TARGETS.extend(ALL_inputSubtract_BIGWIG)
 TARGETS.extend(ALL_FASTQ)
 TARGETS.extend(ALL_FLAGSTAT)
 TARGETS.extend(ALL_QC)
