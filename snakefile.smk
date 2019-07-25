@@ -86,7 +86,7 @@ ALL_inputSubtract_BIGWIG = []
 ALL_BROADPEAK = []
 ALL_BIGWIGUCSC = []
 ALL_COMPUTEMATRIX = []
-ALL_PLOTS = []
+ALL_DPQC_PLOT = []
 
 for case in CASES:
     sample = "_".join(case.split("_")[0:-1])
@@ -112,8 +112,8 @@ ALL_FLAGSTAT = expand(os.path.join(WORKDIR, "03aln/{sample}.sorted.bam.flagstat"
 ALL_PHANTOM = expand(os.path.join(WORKDIR, "05phantompeakqual/{sample}.spp.out"), sample = ALL_SAMPLES)
 ALL_BIGWIG = expand(os.path.join(WORKDIR, "07bigwig/{sample}.bw"), sample = ALL_SAMPLES)
 ALL_COMPUTEMATRIX = expand(os.path.join(WORKDIR, "DPQC/{mark}.computeMatrix.gz"), mark = MARKS)
-ALL_PLOTS = expand(os.path.join(WORKDIR, "DPQC/{mark}.plotHeatmap.png"), mark = MARKS)
-ALL_PLOTS.extend(expand(os.path.join(WORKDIR, "DPQC/{samp}.fingerprint.png"), samp = SAMPLES))
+ALL_DPQC_PLOT = expand(os.path.join(WORKDIR, "DPQC/{mark}.plotHeatmap.png"), mark = MARKS)
+ALL_DPQC_PLOT.extend(expand(os.path.join(WORKDIR, "DPQC/{samp}.fingerprint.png"), samp = SAMPLES))
 ALL_DPQC = expand(os.path.join(WORKDIR, "DPQC/{samp}.plotFingerprintOutRawCounts.txt"), samp = SAMPLES)
 ALL_DPQC.extend(expand(os.path.join(WORKDIR, "DPQC/{samp}.plotFingerprintOutQualityMetrics.txt"), samp = SAMPLES))
 ALL_QC = [os.path.join(WORKDIR, "10multiQC/multiQC_log.html")]
@@ -121,17 +121,10 @@ ALL_QC = [os.path.join(WORKDIR, "10multiQC/multiQC_log.html")]
 
 
 TARGETS = []
-TARGETS.extend(ALL_FASTQC)
-TARGETS.extend(ALL_PHANTOM)
 TARGETS.extend(ALL_PEAKS)
-TARGETS.extend(ALL_BIGWIG)
-TARGETS.extend(ALL_FASTQ)
-TARGETS.extend(ALL_FLAGSTAT)
 TARGETS.extend(ALL_QC)
 TARGETS.extend(ALL_BROADPEAK)
 TARGETS.extend(ALL_BIGWIGUCSC)
-TARGETS.extend(ALL_COMPUTEMATRIX)
-TARGETS.extend(ALL_PLOTS)
 
 # Output files for ChromHMM
 if config["chromHMM"]:
@@ -144,13 +137,12 @@ if config["chromHMM"]:
     HISTONE_INCLUDED = config["histone_for_chromHMM"].split(" ")
     HISTONE_CASES = [sample for sample in CASES if sample.split("_")[-1] in HISTONE_INCLUDED ]
     HISTONE_SAMPLE = list(set([sample.split("_")[0] for sample in CASES if sample.split("_")[-1] in HISTONE_INCLUDED ]))
-    ALL_BED = expand(os.path.join(WORKDIR, "bamtobed/{sample}.bed"), sample = HISTONE_CASES + CONTROLS)
+    BAM_TO_BED = expand(os.path.join(WORKDIR, "bamtobed/{sample}.bed"), sample = HISTONE_CASES + CONTROLS)
     CHROMHMM = expand(os.path.join(WORKDIR, "chromHMM/learn_{nb_state}_states/{sample}_{nb_state}_segments.bed"), sample = HISTONE_SAMPLE, nb_state = config["state"])
     CHRHMM = get_chr(config['chromHmm_g'])
     CHROMHMM_TABLE = [os.path.join(WORKDIR, "chromHMM/cellmarkfiletable.txt")]
-    TARGETS.extend(ALL_BED)
+    #Adding the ChromHMM outputs to rule all
     TARGETS.extend(CHROMHMM)
-    TARGETS.extend(CHROMHMM_TABLE)
 
 localrules: all
 
