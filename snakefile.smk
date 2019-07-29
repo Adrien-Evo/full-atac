@@ -116,15 +116,19 @@ ALL_DPQC_PLOT = expand(os.path.join(WORKDIR, "DPQC/{mark}.plotHeatmap.png"), mar
 ALL_DPQC_PLOT.extend(expand(os.path.join(WORKDIR, "DPQC/{samp}.fingerprint.png"), samp = SAMPLES))
 ALL_DPQC = expand(os.path.join(WORKDIR, "DPQC/{samp}.plotFingerprintOutRawCounts.txt"), samp = SAMPLES)
 ALL_DPQC.extend(expand(os.path.join(WORKDIR, "DPQC/{samp}.plotFingerprintOutQualityMetrics.txt"), samp = SAMPLES))
+
+
 ALL_QC = [os.path.join(WORKDIR, "10multiQC/multiQC_log.html")]
+
+HUB_FOLDER = os.path.join(WORKDIR, "UCSC_HUB")
+ALL_HUB = [os.path.join(HUB_FOLDER,"{}.hub.txt").format(PROJECT_NAME)]
 
 
 
 TARGETS = []
 TARGETS.extend(ALL_PEAKS)
 TARGETS.extend(ALL_QC)
-TARGETS.extend(ALL_BROADPEAK)
-TARGETS.extend(ALL_BIGWIGUCSC)
+TARGETS.extend(ALL_HUB)
 
 # Output files for ChromHMM
 if config["chromHMM"]:
@@ -429,8 +433,10 @@ rule get_UCSC_hub:
     input:  
         bed = ALL_BROADPEAK, 
         bigwig = ALL_BIGWIGUCSC
+    output:
+        ALL_HUB
     params:
-        output_dir = os.path.join(WORKDIR, "HUB/"), 
+        output_dir = HUB_FOLDER, 
         sample_name = list(SAMPLES.keys()), 
         categories = MARKS_NO_CONTROL
     conda:
