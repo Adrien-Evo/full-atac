@@ -4,7 +4,7 @@ import json
 
 shell.prefix("set -eo pipefail; echo BEGIN at $(date); ")
 
-configfile: "config_all.yaml"
+configfile: "config_bam.yaml"
 localrules: all
 # localrules will let the rule run locally rather than submitting to cluster
 # computing nodes, this is for very small jobs
@@ -15,6 +15,9 @@ FILES = json.load(open(config['SAMPLES_JSON']))
 TSS_BED = config['tss_bed']
 WORKDIR = os.path.abspath(config["OUTPUT_DIR"])
 PROJECT_NAME = config['PROJECT_NAME']
+
+BAM_INPUT = config['bam']
+
 
 #  List all samples by sample_name and sample_type (sampleName_MARK is the basis of most of this pipeline atm)
 MARK_SAMPLES = []
@@ -109,22 +112,29 @@ ALL_BAM     = CONTROL_BAM + CASE_BAM
 ALL_DOWNSAMPLE_BAM = expand(os.path.join(WORKDIR, "04aln_downsample/{sample}-downsample.sorted.bam"), sample = ALL_SAMPLES)
 ALL_FASTQ   = expand(os.path.join(WORKDIR, "01seq/{sample}.fastq"), sample = ALL_SAMPLES)
 ALL_FASTQC  = expand(os.path.join(WORKDIR, "02fqc/{sample}_fastqc.zip"), sample = ALL_SAMPLES)
+ALL_BOWTIE_LOG = expand(os.path.join(WORKDIR, "00log/{sample}.align"), sample = ALL_SAMPLES)
 ALL_INDEX = expand(os.path.join(WORKDIR, "03aln/{sample}.sorted.bam.bai"), sample = ALL_SAMPLES)
 ALL_DOWNSAMPLE_INDEX = expand(os.path.join(WORKDIR, "04aln_downsample/{sample}-downsample.sorted.bam.bai"), sample = ALL_SAMPLES)
 ALL_FLAGSTAT = expand(os.path.join(WORKDIR, "03aln/{sample}.sorted.bam.flagstat"), sample = ALL_SAMPLES)
 ALL_PHANTOM = expand(os.path.join(WORKDIR, "05phantompeakqual/{sample}.spp.out"), sample = ALL_SAMPLES)
 ALL_BIGWIG = expand(os.path.join(WORKDIR, "07bigwig/{sample}.bw"), sample = ALL_SAMPLES)
 ALL_COMPUTEMATRIX = expand(os.path.join(WORKDIR, "DPQC/{mark}.computeMatrix.gz"), mark = MARKS)
+
 ALL_DPQC_PLOT = expand(os.path.join(WORKDIR, "DPQC/{mark}.plotHeatmap.png"), mark = MARKS)
 ALL_DPQC_PLOT.extend(expand(os.path.join(WORKDIR, "DPQC/{samp}.fingerprint.png"), samp = SAMPLES))
+
 ALL_DPQC = expand(os.path.join(WORKDIR, "DPQC/{samp}.plotFingerprintOutRawCounts.txt"), samp = SAMPLES)
 ALL_DPQC.extend(expand(os.path.join(WORKDIR, "DPQC/{samp}.plotFingerprintOutQualityMetrics.txt"), samp = SAMPLES))
-
-
 ALL_QC = [os.path.join(WORKDIR, "10multiQC/multiQC_log.html")]
 
 HUB_FOLDER = os.path.join(WORKDIR, "UCSC_HUB")
 ALL_HUB = [os.path.join(HUB_FOLDER,"{}.hub.txt").format(PROJECT_NAME)]
+
+ALL_MULTIQC_INPUT =  ALL_FLAGSTAT + ALL_PHANTOM + ALL_DPQC
+if not BAM_INPUT:
+    ALL_MULTIQC_INPUT.extend(ALL_FASTQC,ALL_BOWTIE_LOG)
+        
+
 
 
 
@@ -132,8 +142,9 @@ TARGETS = []
 TARGETS.extend(ALL_PEAKS)
 TARGETS.extend(ALL_QC)
 TARGETS.extend(ALL_HUB)
-#temp
-TARGETS.extend(os.path.join(WORKDIR, "03aln/bams.json"))
+
+##TEMPTEST
+#TARGETS.extend(os.path.join(WORKDIR, "03aln/bams.json"))
 
 # Output files for ChromHMM
 if config["chromHMM"]:
@@ -158,58 +169,100 @@ localrules: all
 rule all:
     input: TARGETS
 
+if BAM_INPUT == False:
+    #  Get a list of fastq.gz files for the same mark, same sample
+    def get_fastq(wildcards):
+        sample = "_".join(wildcards.sample.split("_")[0:-1])
+        mark = wildcards.sample.split("_")[-1]
+        return FILES[sample][mark]
 
-#  Get a list of fastq.gz files for the same mark, same sample
-def get_fastq(wildcards):
-    sample = "_".join(wildcards.sample.split("_")[0:-1])
-    mark = wildcards.sample.split("_")[-1]
-    return FILES[sample][mark]
+    #  Now only for single-end ChIPseq
+    rule merge_fastqs:
+        input: get_fastq
+        output: os.path.join(WORKDIR, "01seq/{sample}.fastq")
+        log: os.path.join(WORKDIR, "00log/{sample}_unzip")
+        params: jobname = "{sample}"
+        shell: "gunzip -c {input} > {output} 2> {log}"
 
-#  Now only for single-end ChIPseq,
-rule merge_fastqs:
-    input: get_fastq
-    output: os.path.join(WORKDIR, "01seq/{sample}.fastq")
-    log: os.path.join(WORKDIR, "00log/{sample}_unzip")
-    params: jobname = "{sample}"
-    shell: "gunzip -c {input} > {output} 2> {log}"
+    rule fastqc:
+        input:  os.path.join(WORKDIR, "01seq/{sample}.fastq")
+        output: os.path.join(WORKDIR, "02fqc/{sample}_fastqc.zip"), os.path.join(WORKDIR, "02fqc/{sample}_fastqc.html")
+        log:    os.path.join(WORKDIR, "00log/{sample}_fastqc")
+        conda:
+            "envs/multifastqc.yml"
+        params :
+            output_dir = os.path.join(WORKDIR, "02fqc")
+        shell:
+            """
+            fastqc -o {params.output_dir} -f fastq --noextract {input} 2> {log}
+            """
 
-rule fastqc:
-    input:  os.path.join(WORKDIR, "01seq/{sample}.fastq")
-    output: os.path.join(WORKDIR, "02fqc/{sample}_fastqc.zip"), os.path.join(WORKDIR, "02fqc/{sample}_fastqc.html")
-    log:    os.path.join(WORKDIR, "00log/{sample}_fastqc")
-    conda:
-        "envs/multifastqc.yml"
-    params :
-        output_dir = os.path.join(WORKDIR, "02fqc")
-    shell:
+    # Get the duplicates marked sorted bam, remove unmapped reads by samtools view -F 4 and duplicated reads by samblaster -r
+    # Samblaster should run before samtools sort
+    rule align:
+        input:  os.path.join(WORKDIR, "01seq/{sample}.fastq")
+        output: os.path.join(WORKDIR, "03aln/{sample}.sorted.bam"), os.path.join(WORKDIR, "00log/{sample}.align")
+        threads: CLUSTER["align"]["cpu"]
+        conda:
+            "envs/alignment.yml"
+        params:
+            bowtie = " --chunkmbs 320 -m 1 --best -p 5 ", 
+            jobname = "{sample}"
+        message: "aligning {input}: 16 threads"
+        log:
+            bowtie = os.path.join(WORKDIR, "00log/{sample}.align"), 
+            markdup = os.path.join(WORKDIR, "00log/{sample}.markdup")
+        shell:
+            """
+            bowtie2 -p 4 -x {config[idx_bt1]} -q {input} 2> {log.bowtie} \
+            | samblaster --removeDups \
+        | samtools view -Sb -F 4 - \
+        | samtools sort -m 8G -@ 4 -T {output[0]}.tmp -o {output[0]} 2> {log.markdup}
         """
-        fastqc -o {params.output_dir} -f fastq --noextract {input} 2> {log}
-        """
 
-# Get the duplicates marked sorted bam, remove unmapped reads by samtools view -F 4 and duplicated reads by samblaster -r
-# Samblaster should run before samtools sort
-rule align:
-    input:  os.path.join(WORKDIR, "01seq/{sample}.fastq")
-    output: os.path.join(WORKDIR, "03aln/{sample}.sorted.bam"), os.path.join(WORKDIR, "00log/{sample}.align")
-    threads: CLUSTER["align"]["cpu"]
-    conda:
-        "envs/alignment.yml"
-    params:
-        bowtie = " --chunkmbs 320 -m 1 --best -p 5 ", 
-        jobname = "{sample}"
-    message: "aligning {input}: 16 threads"
-    log:
-        bowtie = os.path.join(WORKDIR, "00log/{sample}.align"), 
-        markdup = os.path.join(WORKDIR, "00log/{sample}.markdup")
-    shell:
-        """
-        bowtie2 -p 4 -x {config[idx_bt1]} -q {input} 2> {log.bowtie} \
-        | samblaster --removeDups \
-    | samtools view -Sb -F 4 - \
-    | samtools sort -m 8G -@ 4 -T {output[0]}.tmp -o {output[0]} 2> {log.markdup}
-    """
+    
 
-# SImply indexing bams
+    rule create_bam_json:
+        input: expand(os.path.join(WORKDIR, "03aln/{sample}.sorted.bam"), sample = ALL_SAMPLES), 
+        output: os.path.join(WORKDIR, "03aln/bams.json")
+        params: SAMPLES
+        run:
+            #sample dictionary that will be dumped as a json
+            dict_for_json = {}
+            #Going through all samples usign the sample dictionary -> {sample1: [mark1, mark2],sample2: [mark1, mark2])
+            for samp in SAMPLES:
+                #Mini dictionary containing marks and associated sorted bam filepath
+                mini_dict = {}
+                for mark in SAMPLES[samp]:
+
+                    filepath  =  os.path.join(WORKDIR, "03aln/" + samp + "_" + mark + ".sorted.bam")
+                    mini_dict.update({mark : filepath})
+
+                #Adding the mini dictionary to the sample dictionary
+                dict_for_json[samp] = mini_dict
+
+            with open(output[0],'w') as outFile:
+                outFile.write(json.dumps(dict_for_json, indent = 4))
+
+
+
+if BAM_INPUT:
+    def get_bams(wildcards):
+            sample = "_".join(wildcards.sample.split("_")[0:-1])
+            mark = wildcards.sample.split("_")[-1]
+            return FILES[sample][mark]
+    
+
+    rule symlink_bam:
+        input: get_bams
+        output: os.path.join(WORKDIR, "03aln/{sample}.sorted.bam")
+        shell:
+            """
+            ln -s {input} {output}
+            """
+
+
+# Simply indexing bams
 rule index_bam:
     input:  os.path.join(WORKDIR, "03aln/{sample}.sorted.bam")
     output: os.path.join(WORKDIR, "03aln/{sample}.sorted.bam.bai")
@@ -223,30 +276,6 @@ rule index_bam:
         """
         samtools index {input} 2> {log}
         """
-
-rule create_bam_json:
-    input: expand(os.path.join(WORKDIR, "03aln/{sample}.sorted.bam"), sample = ALL_SAMPLES), 
-    output: os.path.join(WORKDIR, "03aln/bams.json")
-    params: SAMPLES
-    run:
-        #sample dictionary that will be dumped as a json
-        dict_for_json = {}
-        #Going through all samples usign the sample dictionary -> {sample1: [mark1, mark2],sample2: [mark1, mark2])
-        for samp in SAMPLES:
-            #Mini dictionary containing marks and associated sorted bam filepath
-            mini_dict = {}
-            for mark in SAMPLES[samp]:
-
-                filepath  =  os.path.join(WORKDIR, "03aln/" + samp + "_" + mark + ".sorted.bam")
-                mini_dict.update({mark : filepath})
-
-            #Adding the mini dictionary to the sample dictionary
-            dict_for_json[samp] = mini_dict
-
-        with open(output[0],'w') as outFile:
-            outFile.write(json.dumps(dict_for_json, indent = 4))
-
-
 
 # Check number of reads mapped by samtools flagstat, the output will be used for downsampling
 rule flagstat_bam:
@@ -476,13 +505,9 @@ rule get_UCSC_hub:
         """
 
 # MultiQC: Takes flagstats, fastqc, phantompeakqualtools and the deeptools outputs
+
 rule multiQC:
-    input :
-        expand(os.path.join(WORKDIR, "00log/{sample}.align"), sample = ALL_SAMPLES), 
-        ALL_FLAGSTAT,
-        ALL_FASTQC,
-        ALL_PHANTOM,
-        ALL_DPQC
+    input : ALL_MULTIQC_INPUT
     output: os.path.join(WORKDIR, "10multiQC/multiQC_log.html")
     params: os.path.join(WORKDIR, "10multiQC/")
     conda:
@@ -495,7 +520,7 @@ rule multiQC:
         """
 
 # ChromHMM section.
-# This allow for all necessary steps for CHromHMM execution with the number of states declared in the config file 
+# This allow for all necessary steps for ChromHMM execution with the number of states declared in the config file 
 
 if config["chromHMM"]:
     rule bam2bed:
