@@ -5,5 +5,8 @@ A snakemake pipeline to process ChIP-seq data. This pipeline is based on the [py
 This pipeline should be easy to install with snakemake and conda present on the system. At the moment it support running on a sge cluster.
 
 
-
+#TODO
+Add the possibility to work on bam files, to avoid the time consuming step of alignement and decompression
+Add the QC options
+Add the detection of identical input to save computing time and space
 
