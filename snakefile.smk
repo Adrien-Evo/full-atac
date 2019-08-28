@@ -18,25 +18,28 @@ PROJECT_NAME = config['PROJECT_NAME']
 
 #  List all samples by sample_name and sample_type (sampleName_MARK is the basis of most of this pipeline atm)
 MARK_SAMPLES = []
-SAMPLES = sorted(FILES.keys())
+SAMPLES_NAMES = sorted(FILES.keys())
 
 # Create sample_Marks list for all samples
-for sample in SAMPLES:
+# e.g. Mousekidney01_H3K27, Mousekidney01_H3K27me3, Mouseliver04_H3K27, Mouseliver04_H3K27me3
+for sample in SAMPLES_NAMES:
     for sample_type in FILES[sample].keys():
         MARK_SAMPLES.append(sample + "_" + sample_type)
 
+
 # Regroup Marks or TF by sample
+# e.g. Mousekidney01: [H3K27, H3K27me3], Mouseliver04: [H3K27, H3K27me3]
 SAMPLES = dict()
 for sample in sorted(FILES.keys()):
     for sample_type in FILES[sample].keys():
         SAMPLES.setdefault(sample, []).append(sample_type)
 
 # Regroup samples per marks or TF
+# e.g. H3K27: [Mousekidney01, Mouseliver04], H3K27me3: [Mousekidney01, Mouseliver04]
 MARKS = dict()
 for sample in sorted(FILES.keys()):
     for sample_type in FILES[sample].keys():
             MARKS.setdefault(sample_type, []).append(sample)
-
 
 
 
@@ -129,6 +132,8 @@ TARGETS = []
 TARGETS.extend(ALL_PEAKS)
 TARGETS.extend(ALL_QC)
 TARGETS.extend(ALL_HUB)
+#temp
+TARGETS.extend(os.path.join(WORKDIR, "03aln/bams.json"))
 
 # Output files for ChromHMM
 if config["chromHMM"]:
@@ -218,6 +223,30 @@ rule index_bam:
         """
         samtools index {input} 2> {log}
         """
+
+rule create_bam_json:
+    input: expand(os.path.join(WORKDIR, "03aln/{sample}.sorted.bam"), sample = ALL_SAMPLES), 
+    output: os.path.join(WORKDIR, "03aln/bams.json")
+    params: SAMPLES
+    run:
+        #sample dictionary that will be dumped as a json
+        dict_for_json = {}
+        #Going through all samples usign the sample dictionary -> {sample1: [mark1, mark2],sample2: [mark1, mark2])
+        for samp in SAMPLES:
+            #Mini dictionary containing marks and associated sorted bam filepath
+            mini_dict = {}
+            for mark in SAMPLES[samp]:
+
+                filepath  =  os.path.join(WORKDIR, "03aln/" + samp + "_" + mark + ".sorted.bam")
+                mini_dict.update({mark : filepath})
+
+            #Adding the mini dictionary to the sample dictionary
+            dict_for_json[samp] = mini_dict
+
+        with open(output[0],'w') as outFile:
+            outFile.write(json.dumps(dict_for_json, indent = 4))
+
+
 
 # Check number of reads mapped by samtools flagstat, the output will be used for downsampling
 rule flagstat_bam:
