@@ -127,6 +127,7 @@ ALL_DPQC = expand(os.path.join(WORKDIR, "DPQC/{samp}.plotFingerprintOutRawCounts
 ALL_DPQC.extend(expand(os.path.join(WORKDIR, "DPQC/{samp}.plotFingerprintOutQualityMetrics.txt"), samp = SAMPLES))
 ALL_QC = [os.path.join(WORKDIR, "10multiQC/multiQC_log.html")]
 
+ALL_CONFIG= [os.path.join(WORKDIR, "03aln/bams.json")]
 HUB_FOLDER = os.path.join(WORKDIR, "UCSC_HUB")
 ALL_HUB = [os.path.join(HUB_FOLDER,"{}.hub.txt").format(PROJECT_NAME)]
 
@@ -144,9 +145,9 @@ TARGETS = []
 TARGETS.extend(ALL_PEAKS)
 TARGETS.extend(ALL_QC)
 TARGETS.extend(ALL_HUB)
+if not BAM_INPUT:
+    TARGETS.extend(ALL_CONFIG)
 
-##TEMPTEST
-#TARGETS.extend(os.path.join(WORKDIR, "03aln/bams.json"))
 
 # Output files for ChromHMM
 if config["chromHMM"]:
@@ -223,7 +224,7 @@ if BAM_INPUT == False:
         """
 
     
-
+    # This rule is not followed by other rules, so its output has to be added to the rule all conditionally on BAM_INPUT, if Bam are used as input or not
     rule create_bam_json:
         input: expand(os.path.join(WORKDIR, "03aln/{sample}.sorted.bam"), sample = ALL_SAMPLES), 
         output: os.path.join(WORKDIR, "03aln/bams.json")
