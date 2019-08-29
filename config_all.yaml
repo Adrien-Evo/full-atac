@@ -29,7 +29,7 @@ tss_bed: 'hg19TSSUCSCGene.bed'
 
 # ~~~~~~~~~~~~~~~~ ChromHMM ~~~~~~~~~~~~~~~~~
 # - run chromHMM or not ---
-chromHMM: True
+chromHMM: False
 # ---- chromHMM bin size -----
 binsize: 200
 # ---- Number of states -----

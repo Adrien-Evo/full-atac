@@ -1,6 +1,8 @@
 import csv
 import os
 import json
+import numpy as np
+
 
 shell.prefix("set -eo pipefail; echo BEGIN at $(date); ")
 
@@ -15,34 +17,28 @@ FILES = json.load(open(config['SAMPLES_JSON']))
 TSS_BED = config['tss_bed']
 WORKDIR = os.path.abspath(config["OUTPUT_DIR"])
 PROJECT_NAME = config['PROJECT_NAME']
-
 BAM_INPUT = config['bam']
 
+# ======================================================== #
+#     Defining for the first time CASES and CONTROLS        #
+# ======================================================== #
 
-#  List all samples by sample_name and sample_type (sampleName_MARK is the basis of most of this pipeline atm)
-MARK_SAMPLES = []
+SAMPLE_MARK = []
 SAMPLES_NAMES = sorted(FILES.keys())
 
 # Create sample_Marks list for all samples
 # e.g. Mousekidney01_H3K27, Mousekidney01_H3K27me3, Mouseliver04_H3K27, Mouseliver04_H3K27me3
 for sample in SAMPLES_NAMES:
     for sample_type in FILES[sample].keys():
-        MARK_SAMPLES.append(sample + "_" + sample_type)
+        SAMPLE_MARK.append(sample + "_" + sample_type)
 
 
-# Regroup Marks or TF by sample
-# e.g. Mousekidney01: [H3K27, H3K27me3], Mouseliver04: [H3K27, H3K27me3]
-SAMPLES = dict()
-for sample in sorted(FILES.keys()):
-    for sample_type in FILES[sample].keys():
-        SAMPLES.setdefault(sample, []).append(sample_type)
+# Which sample_type is used as control for calling peaks: e.g. Input, IgG...
+CONTROL_NAME = config["control"]
 
-# Regroup samples per marks or TF
-# e.g. H3K27: [Mousekidney01, Mouseliver04], H3K27me3: [Mousekidney01, Mouseliver04]
-MARKS = dict()
-for sample in sorted(FILES.keys()):
-    for sample_type in FILES[sample].keys():
-            MARKS.setdefault(sample_type, []).append(sample)
+CONTROLS = [sample for sample in SAMPLE_MARK if CONTROL_NAME in sample]
+CASES = [sample for sample in SAMPLE_MARK if CONTROL_NAME not in sample]
+
 
 
 
@@ -56,7 +52,6 @@ def get_big_wig_with_mark_or_tf(wildcards):
 
 # Aggregation of bams per sample
 def get_bams_per_sample(wildcards):
-
     marks = SAMPLES[wildcards.samp]
     bams = list()
     for s in marks:
@@ -71,19 +66,101 @@ def get_bam_index_per_sample(wildcards):
         bais.append(os.path.join(WORKDIR, "03aln/"+wildcards.samp+"_"+s+".sorted.bam.bai"))
     return bais
 
-# which sample_type is used as control for calling peaks: e.g. Input, IgG...
-CONTROL = config["control"]
-MARKS_NO_CONTROL = list(MARKS.keys())
-MARKS_NO_CONTROL.remove(CONTROL)
-CONTROLS = [sample for sample in MARK_SAMPLES if CONTROL in sample]
-CASES = [sample for sample in MARK_SAMPLES if CONTROL not in sample]
 
-#  multiple samples may use the same control input/IgG files
-CONTROLS_UNIQUE = list(set(CONTROLS))
+
+
+# ======================================================== #
+# ====== Checking for number of Input/control sample ===== #
+# ======================================================== #
+
+
+#  Create a dictionary linking each sample with their control fastq e.g. { Mousekidney01 : controlIG16_TCGCTAGA_L001_R1_002.fastq.gz 16_TCGCTAGA_L001_R1_001.fastq.gz}  #
+# joining the list to allow for usage asa dictionary key
+controlFastq = dict()
+for control in CONTROLS:
+    sample = "".join(control.split("_")[0:-1])
+    mark = control.split("_")[-1]
+    controlFastq[sample] = " ".join(FILES[sample][mark])
+ 
+# finding duplicate values from controlFastq by flipping it 
+controlFastqFlipped = {} 
+  
+for key, value in controlFastq.items():
+    if value not in controlFastqFlipped: 
+        controlFastqFlipped[value] = [key] 
+    else: 
+        controlFastqFlipped[value].append(key) 
+  
+# controlFastqFlipped dict now is of length the number of unique controls, with the samples using those controls as values
+
+#mergedInputDit allows to create a generic name for the Inputs
+mergedInputDict = controlFastqFlipped
+i = 1
+for key, value in controlFastqFlipped.items():
+    inputname = "Input" + str(i)
+    mergedInputDict[key] = inputname
+    i = i + 1
+
+#Now creating CONTROL_SAMPLE_DICT,  linking sample with their unique Input using the generic input name e.g. {Mousekidney: Input1}
+CONTROL_SAMPLE_DICT = {}
+for key, value in controlFastq.items():
+    CONTROL_SAMPLE_DICT[key] = mergedInputDict[value]
+
+
+#Flipping the flipped dictionary to have a link between generic input name and their corresponding file. Splitting back the file name
+CONTROL_MERGED_FILES = {}
+for key, value in controlFastqFlipped.items():
+    CONTROL_MERGED_FILES[value] = key.split(" ")
+
+#Creating the dictionarry for all sample anme linked to their input file
+CASES_SAMPLE_FILES = {}
+for case in CASES:
+    sample = "_".join(case.split("_")[0:-1])
+    mark = case.split("_")[-1]
+    CASES_SAMPLE_FILES[case] = FILES[sample][mark]
+
+ALL_SAMPLE_FILES = {**CASES_SAMPLE_FILES, **CONTROL_MERGED_FILES}
+
+CONTROLS = list(CONTROL_MERGED_FILES.keys())
+
+# ======================================================== #
+#  Creating dictionaries to associate Marks with their samples and samples with their marks  #
+# ======================================================== #
+
+# Regroup Marks or TF by sample
+# e.g. Mousekidney01: [H3K27, H3K27me3], Mouseliver04: [H3K27, H3K27me3]
+SAMPLES = dict()
+for sample in sorted(FILES.keys()):
+    for mark in FILES[sample].keys():
+        if(mark not in CONTROL_NAME):
+            SAMPLES.setdefault(sample, []).append(mark)
+
+# Adding the proper merged input to the marks of each samples
+for key in SAMPLES.keys():
+    SAMPLES.setdefault(key,[]).append(CONTROL_SAMPLE_DICT[key])
+
+
+
+
+# Regroup samples per marks or TF
+# e.g. H3K27: [Mousekidney01, Mouseliver04], H3K27me3: [Mousekidney01, Mouseliver04]
+MARKS = dict()
+for sample in sorted(FILES.keys()):
+    for mark in FILES[sample].keys():
+        if(mark not in CONTROL_NAME):
+            MARKS.setdefault(mark, []).append(sample)
+
+#Here create a list with all makrs without the control
+MARKS_NO_CONTROL = list(MARKS.keys())
+
+#Adding the key for the merged input
+for key, value in CONTROL_SAMPLE_DICT.items():
+    MARKS.setdefault(value, []).append(key)
+
 
 
 #  list BAM files
-CONTROL_BAM = expand(os.path.join(WORKDIR, "03aln/{sample}.sorted.bam"), sample = CONTROLS_UNIQUE)
+CONTROL_BAM = expand(os.path.join(WORKDIR, "03aln/{sample}.sorted.bam"), sample = CONTROL_MERGED_FILES)
 CASE_BAM = expand(os.path.join(WORKDIR, "03aln/{sample}.sorted.bam"), sample = CASES)
 
 #  peaks and bigwigs
@@ -96,7 +173,7 @@ ALL_DPQC_PLOT = []
 
 for case in CASES:
     sample = "_".join(case.split("_")[0:-1])
-    control = sample + "_" + CONTROL
+    control = CONTROL_SAMPLE_DICT[sample]
     if control in CONTROLS:
         ALL_PEAKS.append(os.path.join(WORKDIR, "08peak_macs1/{}_vs_{}_macs1_peaks.bed").format(case, control))
         ALL_PEAKS.append(os.path.join(WORKDIR, "08peak_macs1/{}_vs_{}_macs1_nomodel_peaks.bed").format(case, control))
@@ -106,8 +183,7 @@ for case in CASES:
         ALL_BROADPEAK.append(os.path.join(WORKDIR, "12UCSC_broad/{}_vs_{}_macs2_peaks.broadPeak").format(case, control))
         ALL_BIGWIGUCSC.append(os.path.join(WORKDIR, "UCSC_compatible_bigWig/{}_subtract_{}.bw").format(case, control))
 
-
-ALL_SAMPLES = CASES + CONTROLS_UNIQUE
+ALL_SAMPLES = CASES + CONTROLS
 ALL_BAM     = CONTROL_BAM + CASE_BAM
 ALL_DOWNSAMPLE_BAM = expand(os.path.join(WORKDIR, "04aln_downsample/{sample}-downsample.sorted.bam"), sample = ALL_SAMPLES)
 ALL_FASTQ   = expand(os.path.join(WORKDIR, "01seq/{sample}.fastq"), sample = ALL_SAMPLES)
@@ -118,28 +194,32 @@ ALL_DOWNSAMPLE_INDEX = expand(os.path.join(WORKDIR, "04aln_downsample/{sample}-d
 ALL_FLAGSTAT = expand(os.path.join(WORKDIR, "03aln/{sample}.sorted.bam.flagstat"), sample = ALL_SAMPLES)
 ALL_PHANTOM = expand(os.path.join(WORKDIR, "05phantompeakqual/{sample}.spp.out"), sample = ALL_SAMPLES)
 ALL_BIGWIG = expand(os.path.join(WORKDIR, "07bigwig/{sample}.bw"), sample = ALL_SAMPLES)
-ALL_COMPUTEMATRIX = expand(os.path.join(WORKDIR, "DPQC/{mark}.computeMatrix.gz"), mark = MARKS)
 
+ALL_COMPUTEMATRIX = expand(os.path.join(WORKDIR, "DPQC/{mark}.computeMatrix.gz"), mark = MARKS)
 ALL_DPQC_PLOT = expand(os.path.join(WORKDIR, "DPQC/{mark}.plotHeatmap.png"), mark = MARKS)
 ALL_DPQC_PLOT.extend(expand(os.path.join(WORKDIR, "DPQC/{samp}.fingerprint.png"), samp = SAMPLES))
-
 ALL_DPQC = expand(os.path.join(WORKDIR, "DPQC/{samp}.plotFingerprintOutRawCounts.txt"), samp = SAMPLES)
 ALL_DPQC.extend(expand(os.path.join(WORKDIR, "DPQC/{samp}.plotFingerprintOutQualityMetrics.txt"), samp = SAMPLES))
-ALL_QC = [os.path.join(WORKDIR, "10multiQC/multiQC_log.html")]
 
+
+ALL_QC = [os.path.join(WORKDIR, "10multiQC/multiQC_log.html")]
 ALL_CONFIG= [os.path.join(WORKDIR, "03aln/bams.json")]
 HUB_FOLDER = os.path.join(WORKDIR, "UCSC_HUB")
 ALL_HUB = [os.path.join(HUB_FOLDER,"{}.hub.txt").format(PROJECT_NAME)]
 
 ALL_MULTIQC_INPUT =  ALL_FLAGSTAT + ALL_PHANTOM + ALL_DPQC
+
 if not BAM_INPUT:
     ALL_MULTIQC_INPUT = ALL_FLAGSTAT + ALL_PHANTOM + ALL_DPQC + ALL_FASTQC,ALL_BOWTIE_LOG
 else:
     ALL_MULTIQC_INPUT = ALL_FLAGSTAT + ALL_PHANTOM + ALL_DPQC
-        
 
+print("samples",SAMPLES)
+print("allsamples",ALL_SAMPLES)
+print("all_fastq",ALL_FASTQ)
+print("alldpqcplots",ALL_DPQC_PLOT)
 
-
+print(ALL_SAMPLE_FILES.keys())
 
 TARGETS = []
 TARGETS.extend(ALL_PEAKS)
@@ -175,11 +255,9 @@ rule all:
 if BAM_INPUT == False:
     #  Get a list of fastq.gz files for the same mark, same sample
     def get_fastq(wildcards):
-        sample = "_".join(wildcards.sample.split("_")[0:-1])
-        mark = wildcards.sample.split("_")[-1]
-        return FILES[sample][mark]
+        return ALL_SAMPLE_FILES[wildcards.sample]
 
-    #  Now only for single-end ChIPseq
+    #Now only for single-end ChIPseq
     rule merge_fastqs:
         input: get_fastq
         output: os.path.join(WORKDIR, "01seq/{sample}.fastq")
@@ -251,9 +329,8 @@ if BAM_INPUT == False:
 
 if BAM_INPUT:
     def get_bams(wildcards):
-            sample = "_".join(wildcards.sample.split("_")[0:-1])
-            mark = wildcards.sample.split("_")[-1]
-            return FILES[sample][mark]
+        return ALL_SAMPLE_FILES[wildcards.sample]
+
     
 
     rule symlink_bam:
@@ -555,7 +632,7 @@ if config["chromHMM"]:
                 for case in HISTONE_CASES:
                     sample = "_".join(case.split("_")[0:-1])
                     mark = case.split("_")[-1]
-                    control = sample + "_" + CONTROL
+                    control = sample + "_" + CONTROL_NAME
                     case_bed = case + ".bed"
                     if os.path.exists(join(os.path.join(WORKDIR, "bamtobed"), case_bed)):
                         f.write(sample + "\t" +  mark + "\t" + case + ".bed" + "\t" + control + ".bed" + "\n")
