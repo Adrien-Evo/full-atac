@@ -6,7 +6,7 @@ SAMPLES: './meta.txt'
 SAMPLES_JSON: './samples_w_input.json'
 CLUSTER_JSON: './cluster.json'
 OUTPUT_DIR: './out'
-
+bam: False
 
 
 # MACS parameters for peak calling

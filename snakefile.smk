@@ -132,7 +132,9 @@ ALL_HUB = [os.path.join(HUB_FOLDER,"{}.hub.txt").format(PROJECT_NAME)]
 
 ALL_MULTIQC_INPUT =  ALL_FLAGSTAT + ALL_PHANTOM + ALL_DPQC
 if not BAM_INPUT:
-    ALL_MULTIQC_INPUT.extend(ALL_FASTQC,ALL_BOWTIE_LOG)
+    ALL_MULTIQC_INPUT = ALL_FLAGSTAT + ALL_PHANTOM + ALL_DPQC + ALL_FASTQC,ALL_BOWTIE_LOG
+else:
+    ALL_MULTIQC_INPUT = ALL_FLAGSTAT + ALL_PHANTOM + ALL_DPQC
         
 
 
@@ -508,7 +510,7 @@ rule get_UCSC_hub:
 
 rule multiQC:
     input : ALL_MULTIQC_INPUT
-    output: os.path.join(WORKDIR, "10multiQC/multiQC_log.html")
+    output: ALL_QC
     params: os.path.join(WORKDIR, "10multiQC/")
     conda:
         "envs/multifastqc.yml"

@@ -6,7 +6,6 @@ This pipeline should be easy to install with snakemake and conda present on the 
 
 
 #TODO
-Add the possibility to work on bam files, to avoid the time consuming step of alignement and decompression
 Add the QC options
 Add the detection of identical input to save computing time and space
 
