@@ -304,7 +304,7 @@ if BAM_INPUT == False:
         output: os.path.join(WORKDIR, "03aln/{sample}.sorted.bam"), os.path.join(WORKDIR, "00log/{sample}.align")
         threads: CLUSTER["align"]["cpu"]
         conda:
-            "envs/alignment.yml"
+            "envs/full-atac-main-env.yml"
         params:
             bowtie = " --chunkmbs 320 -m 1 --best -p 5 ", 
             jobname = "{sample}"
@@ -364,7 +364,7 @@ rule index_bam:
     log:    os.path.join(WORKDIR, "00log/{sample}.bam.index")
     threads: 1
     conda:
-        "envs/alignment.yml"
+        "envs/full-atac-main-env.yml"
     params: jobname = "{sample}"
     message: "index_bam {input}: {threads} threads"
     shell:
@@ -379,14 +379,13 @@ rule flagstat_bam:
     log:    os.path.join(WORKDIR, "00log/{sample}.bam.flagstat")
     threads: 1
     conda:
-        "envs/alignment.yml"
+        "envs/full-atac-main-env.yml"
     params: jobname = "{sample}"
     message: "flagstat_bam {input}: {threads} threads"
     shell:
         """
         samtools flagstat {input} > {output} 2> {log}
         """
-
 
 # Phantompeakqualtools computes a robust fragment length using the cross correlation (xcor) metrics.
 rule phantom_peak_qual:
@@ -433,7 +432,7 @@ rule make_inputSubtract_bigwigs:
     log: os.path.join(WORKDIR, "00log/{case}-vs-{control}inputSubtract.makebw")
     threads: 5
     conda:
-        "envs/deeptools.yml"
+        "envs/full-atac-main-env.yml"
     params: jobname = "{case}"
     message: "making input subtracted bigwig for {input}"
     shell:
@@ -447,7 +446,7 @@ rule make_bigwigs:
     log: os.path.join(WORKDIR, "00log/{sample}.makebw")
     threads: 5
     conda:
-        "envs/deeptools.yml"
+        "envs/full-atac-main-env.yml"
     params: jobname = "{sample}"
     message: "making bigwig for {input}"
     shell:
@@ -460,7 +459,7 @@ rule computeMatrix_QC:
     input : get_big_wig_with_mark_or_tf 
     output : os.path.join(WORKDIR, "DPQC/{mark}.computeMatrix.gz")
     conda:
-        "envs/deeptools.yml"
+        "envs/full-atac-main-env.yml"
     params : TSS_BED
     shell:
         """
@@ -472,7 +471,7 @@ rule plotHeatmap:
     input :  os.path.join(WORKDIR, "DPQC/{mark}.computeMatrix.gz")
     output : os.path.join(WORKDIR, "DPQC/{mark}.plotHeatmap.png")
     conda:
-        "envs/deeptools.yml"
+        "envs/full-atac-main-env.yml"
     shell:
         """
         plotHeatmap -m {input} -out {output} --colorMap jet
@@ -488,7 +487,7 @@ rule plotFingerPrint:
         rawCounts = os.path.join(WORKDIR, "DPQC/{samp}.plotFingerprintOutRawCounts.txt"), 
         qualityMetrics = os.path.join(WORKDIR, "DPQC/{samp}.plotFingerprintOutQualityMetrics.txt")
     conda:
-        "envs/deeptools.yml"
+        "envs/full-atac-main-env.yml"
     params: 
         labels = get_all_marks_per_sample
     shell:
@@ -503,7 +502,7 @@ rule get_UCSC_bigwig:
         wig1 = os.path.join(WORKDIR, "06bigwig_inputSubtract/{case}-subtract-{control}.temp.wig"), 
         wig2 = os.path.join(WORKDIR, "06bigwig_inputSubtract/{case}-subtract-{control}.temp2.wig")
     conda:
-        "envs/ucsc-utilities.yml"
+        "envs/full-atac-main-env.yml"
     shell:
         """
         bigWigToWig {input} {params.wig1}
@@ -568,6 +567,15 @@ rule call_peaks_macs2:
             --outdir {params.outdir} -n {params.name} -p {config[macs2_pvalue]} --broad --broad-cutoff {config[macs2_pvalue_broad]} --nomodel &> {log}
         """
 
+# rule get_FRiP:
+#     input:
+#         peaks = os.path.join(WORKDIR, "09peak_macs2/{case}_vs_{control}_macs2_peaks.broadPeak"),
+#         bam = os.path.join(WORKDIR, "03aln/{sample}.sorted.bam"), 
+#         bai = os.path.join(WORKDIR, "03aln/{sample}.sorted.bam.bai")
+#     output :
+#         os.path.join(WORKDIR, "DPQC/{samp}.FRiP.txt")
+    
+
 # Cleaning broadGapped peak by adding "chr" on chr, sorting, setting score > 1000 to 1000 with awk then converting to bigbed
 rule get_UCSC_bigBed:
     input: os.path.join(WORKDIR, "09peak_macs2/{case}-vs-{control}-macs2_peaks.broadPeak")
@@ -575,7 +583,7 @@ rule get_UCSC_bigBed:
     params : 
         bed1 = temp(os.path.join(WORKDIR, "12UCSC_broad/{case}-vs-{control}-macs2_peaks.bed"))
     conda:
-        "envs/ucsc-utilities.yml"
+        "envs/full-atac-main-env.yml"
     shell:
         """
         sed -r 's/^[0-9]|^X|^Y|^MT/chr&/g' {input} | LC_COLLATE=C sort -k1,1 -k2,2n | awk '{{if($5 > 1000) $5=1000}}; {{print $0}}' > {params.bed1}
@@ -594,7 +602,7 @@ rule get_UCSC_hub:
         sample_name = list(SAMPLES.keys()), 
         categories = MARKS_NO_CONTROL
     conda:
-        "envs/trackhub.yml"
+        "envs/full-atac-main-env.yml"
     shell:
         """
         python3 scripts/makeUCSCtrackHub.py --hub_name {PROJECT_NAME} --sample_name {params.sample_name} --categories {params.categories} --output_dir {params.output_dir} --peaks {input.bed} --bw {input.bigwig} 2> makehub.err
