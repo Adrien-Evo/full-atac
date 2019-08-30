@@ -159,12 +159,12 @@ for case in CASES:
     control = CONTROL_SAMPLE_DICT[sample]
     if control in CONTROLS:
         print(case,control)
-        ALL_PEAKS.append(os.path.join(WORKDIR, "08peak_macs1/{}-vs-{}-macs1-peaks.bed").format(case, control))
+        ALL_PEAKS.append(os.path.join(WORKDIR, "08peak_macs1/{}-vs-{}-macs1_peaks.bed").format(case, control))
         ALL_PEAKS.append(os.path.join(WORKDIR, "08peak_macs1/{}-vs-{}-macs1-nomodel_peaks.bed").format(case, control))
-        ALL_PEAKS.append(os.path.join(WORKDIR, "09peak_macs2/{}-vs-{}-macs2-peaks.xls").format(case, control))
-        ALL_PEAKS.append(os.path.join(WORKDIR, "09peak_macs2/{}-vs-{}-macs2-peaks.broadPeak").format(case, control))
+        ALL_PEAKS.append(os.path.join(WORKDIR, "09peak_macs2/{}-vs-{}-macs2_peaks.xls").format(case, control))
+        ALL_PEAKS.append(os.path.join(WORKDIR, "09peak_macs2/{}-vs-{}-macs2_peaks.broadPeak").format(case, control))
         ALL_inputSubtract_BIGWIG.append(os.path.join(WORKDIR, "06bigwig_inputSubtract/{}-subtract-{}.bw").format(case, control))
-        ALL_BROADPEAK.append(os.path.join(WORKDIR, "12UCSC_broad/{}-vs-{}-macs2-peaks.broadPeak").format(case, control))
+        ALL_BROADPEAK.append(os.path.join(WORKDIR, "12UCSC_broad/{}-vs-{}-macs2_peaks.broadPeak").format(case, control))
         ALL_BIGWIGUCSC.append(os.path.join(WORKDIR, "UCSC_compatible_bigWig/{}-subtract-{}.bw").format(case, control))
 
 ALL_SAMPLES = CASES + CONTROLS
@@ -517,12 +517,12 @@ rule call_peaks_macs1:
     input: 
         control = os.path.join(WORKDIR, "04aln_downsample/{control}-downsample.sorted.bam"), 
         case = os.path.join(WORKDIR, "04aln_downsample/{case}-downsample.sorted.bam")
-    output: os.path.join(WORKDIR, "08peak_macs1/{case}-vs-{control}-macs1-peaks.bed"), os.path.join(WORKDIR, "08peak_macs1/{case}-vs-{control}-macs1-nomodel_peaks.bed")
+    output: os.path.join(WORKDIR, "08peak_macs1/{case}-vs-{control}-macs1_peaks.bed"), os.path.join(WORKDIR, "08peak_macs1/{case}-vs-{control}-macs1-nomodel_peaks.bed")
     log:
         macs1 = os.path.join(WORKDIR, "00log/{case}-vs-{control}-call-peaks_macs1.log"), 
         macs1_nomodel = os.path.join(WORKDIR, "00log/{case}-vs-{control}-call-peaks-macs1-nomodel.log")
     params:
-        name1 = "{case}-vs-{control}_macs1", 
+        name1 = "{case}-vs-{control}-macs1", 
         name2 = "{case}-vs-{control}-macs1-nomodel", 
         jobname = "{case}", 
         outdir = os.path.join(WORKDIR, "08peak_macs1/")
@@ -550,11 +550,11 @@ rule call_peaks_macs2:
         control = os.path.join(WORKDIR, "04aln_downsample/{control}-downsample.sorted.bam"), 
         case = os.path.join(WORKDIR, "04aln_downsample/{case}-downsample.sorted.bam")
     output:
-        bed = os.path.join(WORKDIR, "09peak_macs2/{case}-vs-{control}-macs2-peaks.xls"), 
-        broad = os.path.join(WORKDIR, "09peak_macs2/{case}-vs-{control}-macs2-peaks.broadPeak")
+        bed = os.path.join(WORKDIR, "09peak_macs2/{case}-vs-{control}-macs2_peaks.xls"), 
+        broad = os.path.join(WORKDIR, "09peak_macs2/{case}-vs-{control}-macs2_peaks.broadPeak")
     log: os.path.join(WORKDIR, "00log/{case}-vs-{control}-call-peaks_macs2.log")
     params:
-        name = "{case}-vs-{control}_macs2", 
+        name = "{case}-vs-{control}-macs2", 
         jobname = "{case}", 
         outdir = os.path.join(WORKDIR, "09peak_macs2")
     conda:
@@ -570,10 +570,10 @@ rule call_peaks_macs2:
 
 # Cleaning broadGapped peak by adding "chr" on chr, sorting, setting score > 1000 to 1000 with awk then converting to bigbed
 rule get_UCSC_bigBed:
-    input: os.path.join(WORKDIR, "09peak_macs2/{case}-vs-{control}-macs2-peaks.broadPeak")
-    output: os.path.join(WORKDIR, "12UCSC_broad/{case}-vs-{control}-macs2-peaks.broadPeak")
+    input: os.path.join(WORKDIR, "09peak_macs2/{case}-vs-{control}-macs2_peaks.broadPeak")
+    output: os.path.join(WORKDIR, "12UCSC_broad/{case}-vs-{control}-macs2_peaks.broadPeak")
     params : 
-        bed1 = temp(os.path.join(WORKDIR, "12UCSC_broad/{case}-vs-{control}-macs2-peaks.bed"))
+        bed1 = temp(os.path.join(WORKDIR, "12UCSC_broad/{case}-vs-{control}-macs2_peaks.bed"))
     conda:
         "envs/ucsc-utilities.yml"
     shell:
