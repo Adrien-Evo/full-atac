@@ -36,12 +36,8 @@ for sample in SAMPLES_NAMES:
 # Which sample_type is used as control for calling peaks: e.g. Input, IgG...
 CONTROL_NAME = config["control"]
 
-CONTROLS = [sample for sample in SAMPLE_MARK if CONTROL_NAME in sample]
+#  defining CASES samples  #
 CASES = [sample for sample in SAMPLE_MARK if CONTROL_NAME not in sample]
-
-
-
-
 
 
 # ======================================================== #
@@ -52,10 +48,11 @@ CASES = [sample for sample in SAMPLE_MARK if CONTROL_NAME not in sample]
 #  Create a dictionary linking each sample with their control fastq e.g. { Mousekidney01 : controlIG16_TCGCTAGA_L001_R1_002.fastq.gz 16_TCGCTAGA_L001_R1_001.fastq.gz}  #
 # joining the list to allow for usage asa dictionary key
 controlFastq = dict()
-for control in CONTROLS:
-    sample = "".join(control.split("_")[0:-1])
-    mark = control.split("_")[-1]
-    controlFastq[sample] = " ".join(FILES[sample][mark])
+for samp in SAMPLE_MARK:
+    if CONTROL_NAME in samp:
+        sample = "".join(samp.split("_")[0:-1])
+        mark = samp.split("_")[-1]
+        controlFastq[sample] = " ".join(FILES[sample][mark])
  
 # finding duplicate values from controlFastq by flipping it 
 controlFastqFlipped = {} 
@@ -87,7 +84,7 @@ CONTROL_MERGED_FILES = {}
 for key, value in controlFastqFlipped.items():
     CONTROL_MERGED_FILES[value] = key.split(" ")
 
-#Creating the dictionnary for all sample anme linked to their input file
+#Creating the dictionnary for all sample name linked to their input file
 CASES_SAMPLE_FILES = {}
 for case in CASES:
     sample = "_".join(case.split("_")[0:-1])
@@ -151,14 +148,12 @@ ALL_PEAKS = []
 ALL_inputSubtract_BIGWIG = []
 ALL_BROADPEAK = []
 ALL_BIGWIGUCSC = []
-ALL_COMPUTEMATRIX = []
-ALL_DPQC_PLOT = []
+ALL_FEATURECOUNTS = []
 
 for case in CASES:
     sample = "_".join(case.split("_")[0:-1])
     control = CONTROL_SAMPLE_DICT[sample]
     if control in CONTROLS:
-        print(case,control)
         ALL_PEAKS.append(os.path.join(WORKDIR, "08peak_macs1/{}-vs-{}-macs1_peaks.bed").format(case, control))
         ALL_PEAKS.append(os.path.join(WORKDIR, "08peak_macs1/{}-vs-{}-macs1-nomodel_peaks.bed").format(case, control))
         ALL_PEAKS.append(os.path.join(WORKDIR, "09peak_macs2/{}-vs-{}-macs2_peaks.xls").format(case, control))
@@ -166,6 +161,8 @@ for case in CASES:
         ALL_inputSubtract_BIGWIG.append(os.path.join(WORKDIR, "06bigwig_inputSubtract/{}-subtract-{}.bw").format(case, control))
         ALL_BROADPEAK.append(os.path.join(WORKDIR, "12UCSC_broad/{}-vs-{}-macs2_peaks.broadPeak").format(case, control))
         ALL_BIGWIGUCSC.append(os.path.join(WORKDIR, "UCSC_compatible_bigWig/{}-subtract-{}.bw").format(case, control))
+        ALL_FEATURECOUNTS.append(os.path.join(WORKDIR, "DPQC/{}-vs-{}.FRiP.summary").format(case,control))
+
 
 ALL_SAMPLES = CASES + CONTROLS
 ALL_BAM     = CONTROL_BAM + CASE_BAM
@@ -187,6 +184,7 @@ ALL_DPQC.extend(expand(os.path.join(WORKDIR, "DPQC/{samp}.plotFingerprintOutQual
 
 
 ALL_QC = [os.path.join(WORKDIR, "10multiQC/multiQC_log.html")]
+
 ALL_CONFIG= [os.path.join(WORKDIR, "03aln/bams.json")]
 HUB_FOLDER = os.path.join(WORKDIR, "UCSC_HUB")
 ALL_HUB = [os.path.join(HUB_FOLDER,"{}.hub.txt").format(PROJECT_NAME)]
@@ -195,19 +193,17 @@ ALL_HUB = [os.path.join(HUB_FOLDER,"{}.hub.txt").format(PROJECT_NAME)]
 
 
 if not BAM_INPUT:
-    ALL_MULTIQC_INPUT = ALL_FLAGSTAT + ALL_PHANTOM + ALL_DPQC + ALL_FASTQC + ALL_BOWTIE_LOG
+    ALL_MULTIQC_INPUT = ALL_FLAGSTAT + ALL_PHANTOM + ALL_DPQC + ALL_FEATURECOUNTS + ALL_FASTQC + ALL_BOWTIE_LOG 
 else:
-    ALL_MULTIQC_INPUT = ALL_FLAGSTAT + ALL_PHANTOM + ALL_DPQC
+    ALL_MULTIQC_INPUT = ALL_FLAGSTAT + ALL_PHANTOM + ALL_DPQC + ALL_FEATURECOUNTS
 
-print("allsamples                ",ALL_SAMPLES)
-print("SAMPLES          ",SAMPLES)
-print("MARKS       ", MARKS)
-print('SAMPLES_COMPLETE NAME                           ', SAMPLES_COMPLETE_NAME)
+
 
 TARGETS = []
 TARGETS.extend(ALL_PEAKS)
 TARGETS.extend(ALL_QC)
 TARGETS.extend(ALL_HUB)
+TARGETS.extend(ALL_FEATURECOUNTS)
 
 if not BAM_INPUT:
     TARGETS.extend(ALL_CONFIG)
@@ -323,7 +319,7 @@ if BAM_INPUT == False:
     
     # This rule is not followed by other rules, so its output has to be added to the rule all conditionally on BAM_INPUT, if Bam are used as input or not
     rule create_bam_json:
-        input: expand(os.path.join(WORKDIR, "03aln/{sample}.sorted.bam"), sample = ALL_SAMPLES), 
+        input: expand(os.path.join(WORKDIR, "03aln/{sample}.sorted.bam"), sample = ALL_SAMPLES),
         output: os.path.join(WORKDIR, "03aln/bams.json")
         params: SAMPLES
         run:
@@ -569,17 +565,20 @@ rule call_peaks_macs2:
 
 rule get_FRiP:
     input:
-        peaks = os.path.join(WORKDIR, "09peak_macs2/{case}_vs_{control}_macs2_peaks.broadPeak"),
-        bam = os.path.join(WORKDIR, "03aln/{sample}.sorted.bam"), 
+        peaks = os.path.join(WORKDIR, "09peak_macs2/{case}-vs-{control}-macs2_peaks.broadPeak"),
+        bam = os.path.join(WORKDIR, "03aln/{case}.sorted.bam"), 
     output:
-        os.path.join(WORKDIR, "DPQC/{samp}.FRiP.txt")
+        os.path.join(WORKDIR, "DPQC/{case}-vs-{control}.FRiP.summary")
     params:
-        saf = os.path.join(WORKDIR, "DPQC/{samp}.saf")
+        saf = os.path.join(WORKDIR, "DPQC/{case}.saf"),
+        outputName = os.path.join(WORKDIR, "DPQC/{case}-vs-{control}.FRiP")
+    conda:
+        "envs/full-atac-main-env.yml"
     shell:
-    """
+        """
         awk 'BEGIN{{OFS="\t";print "GeneID", "Chr","Start","End","Strand"}}{{print $4,$1,$2,$3,$6}}' {input.peaks} > {params.saf}
-        featureCounts -a {params.saf} -F SAF -o {output} {input.bam}
-    """
+        featureCounts -a {params.saf} -F SAF -o {params.outputName} {input.bam}
+        """
 
 # Cleaning broadGapped peak by adding "chr" on chr, sorting, setting score > 1000 to 1000 with awk then converting to bigbed
 rule get_UCSC_bigBed:
