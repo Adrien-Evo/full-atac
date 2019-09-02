@@ -289,7 +289,7 @@ if BAM_INPUT == False:
         output: os.path.join(WORKDIR, "02fqc/{sample}_fastqc.zip"), os.path.join(WORKDIR, "02fqc/{sample}_fastqc.html")
         log:    os.path.join(WORKDIR, "00log/{sample}.fastqc")
         conda:
-            "envs/multifastqc.yml"
+            "envs/full-atac-main-env.yml"
         params :
             output_dir = os.path.join(WORKDIR, "02fqc")
         shell:
@@ -415,7 +415,7 @@ rule down_sample:
     log: os.path.join(WORKDIR, "00log/{sample}.downsample.log")
     threads: 5
     conda:
-        "envs/alignment.yml"
+        "envs/full-atac-main-env.yml"
     params: 
     log: os.path.join(WORKDIR, "00log/{sample}.phantompeakqual.log")
     message: "downsampling for {input}"
@@ -567,14 +567,19 @@ rule call_peaks_macs2:
             --outdir {params.outdir} -n {params.name} -p {config[macs2_pvalue]} --broad --broad-cutoff {config[macs2_pvalue_broad]} --nomodel &> {log}
         """
 
-# rule get_FRiP:
-#     input:
-#         peaks = os.path.join(WORKDIR, "09peak_macs2/{case}_vs_{control}_macs2_peaks.broadPeak"),
-#         bam = os.path.join(WORKDIR, "03aln/{sample}.sorted.bam"), 
-#         bai = os.path.join(WORKDIR, "03aln/{sample}.sorted.bam.bai")
-#     output :
-#         os.path.join(WORKDIR, "DPQC/{samp}.FRiP.txt")
-    
+rule get_FRiP:
+    input:
+        peaks = os.path.join(WORKDIR, "09peak_macs2/{case}_vs_{control}_macs2_peaks.broadPeak"),
+        bam = os.path.join(WORKDIR, "03aln/{sample}.sorted.bam"), 
+    output:
+        os.path.join(WORKDIR, "DPQC/{samp}.FRiP.txt")
+    params:
+        saf = os.path.join(WORKDIR, "DPQC/{samp}.saf")
+    shell:
+    """
+        awk 'BEGIN{{OFS="\t";print "GeneID", "Chr","Start","End","Strand"}}{{print $4,$1,$2,$3,$6}}' {input.peaks} > {params.saf}
+        featureCounts -a {params.saf} -F SAF -o {output} {input.bam}
+    """
 
 # Cleaning broadGapped peak by adding "chr" on chr, sorting, setting score > 1000 to 1000 with awk then converting to bigbed
 rule get_UCSC_bigBed:
@@ -615,7 +620,7 @@ rule multiQC:
     output: ALL_QC
     params: os.path.join(WORKDIR, "10multiQC/")
     conda:
-        "envs/multifastqc.yml"
+        "envs/full-atac-main-env.yml"
     log: os.path.join(WORKDIR, "00log/multiqc.log")
     message: "multiqc for all logs"
     shell:
