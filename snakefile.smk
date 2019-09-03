@@ -496,13 +496,11 @@ rule get_UCSC_bigwig:
     params : 
         wig1 = os.path.join(WORKDIR, "06bigwig_inputSubtract/{case}-subtract-{control}.temp.wig"), 
         wig2 = os.path.join(WORKDIR, "06bigwig_inputSubtract/{case}-subtract-{control}.temp2.wig")
-    conda:
-        "envs/full-atac-main-env.yml"
     shell:
         """
-        bigWigToWig {input} {params.wig1}
+        scripts/bigWigToWig {input} {params.wig1}
         sed -r 's/^[0-9]|^X|^Y|^MT/chr&/g' {params.wig1} | LC_COLLATE=C sort -k1,1 -k2,2n > {params.wig2}
-        wigToBigWig {params.wig2} ~/genome_size_UCSC_compatible_GRCh37.75.txt {output}
+        scripts/wigToBigWig {params.wig2} ~/genome_size_UCSC_compatible_GRCh37.75.txt {output}
         rm {params.wig1} {params.wig2}
         """
 
@@ -585,12 +583,10 @@ rule get_UCSC_bigBed:
     output: os.path.join(WORKDIR, "12UCSC_broad/{case}-vs-{control}-macs2_peaks.broadPeak")
     params : 
         bed1 = temp(os.path.join(WORKDIR, "12UCSC_broad/{case}-vs-{control}-macs2_peaks.bed"))
-    conda:
-        "envs/full-atac-main-env.yml"
     shell:
         """
         sed -r 's/^[0-9]|^X|^Y|^MT/chr&/g' {input} | LC_COLLATE=C sort -k1,1 -k2,2n | awk '{{if($5 > 1000) $5=1000}}; {{print $0}}' > {params.bed1}
-        bedToBigBed {params.bed1} ~/genome_size_UCSC_compatible_GRCh37.75.txt {output} -type=bed6+3
+        scripts/bedToBigBed {params.bed1} ~/genome_size_UCSC_compatible_GRCh37.75.txt {output} -type=bed6+3
         """
 
 # Creating a Hub for UCSC
