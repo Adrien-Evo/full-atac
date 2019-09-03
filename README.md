@@ -6,6 +6,5 @@ This pipeline should be easy to install with snakemake and conda present on the 
 
 
 #TODO
-Add the QC options
-Add the detection of identical input to save computing time and space
-
+Work on the specificites of each histone marks : Downsmalping requicrement from ENCODE
+WOrk on the specific of peak calling. Narrow or broad for different kinds of histones. Conditional input is tough though
