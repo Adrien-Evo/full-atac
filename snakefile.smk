@@ -3,15 +3,16 @@ import os
 import json
 import numpy as np
 
-
+#  Safe execution of scripts  #
 shell.prefix("set -eo pipefail; echo BEGIN at $(date); ")
 
-configfile: "config_bam.yaml"
-localrules: all
-# localrules will let the rule run locally rather than submitting to cluster
-# computing nodes, this is for very small jobs
+# ======================================================== #
+# ================== Config file loading ================= #
+# ======================================================== #
 
-# load cluster config file
+configfile: "config_bam.yaml"
+
+# Loading config file items
 CLUSTER = json.load(open(config['CLUSTER_JSON']))
 FILES = json.load(open(config['SAMPLES_JSON']))
 TSS_BED = config['tss_bed']
@@ -19,8 +20,12 @@ WORKDIR = os.path.abspath(config["OUTPUT_DIR"])
 PROJECT_NAME = config['PROJECT_NAME']
 BAM_INPUT = config['bam']
 
+###########################################################################
+#################### Defining samples, cases, controls ####################
+###########################################################################
+
 # ======================================================== #
-#     Defining for the first time CASES and CONTROLS        #
+# ==== Defining for the first time CASES samples    ====== #
 # ======================================================== #
 
 SAMPLE_MARK = []
@@ -41,12 +46,12 @@ CASES = [sample for sample in SAMPLE_MARK if CONTROL_NAME not in sample]
 
 
 # ======================================================== #
-# ====== Checking for number of Input/control sample ===== #
+# =========  Defining Control/Input samples   ============ #
 # ======================================================== #
 
 
 #  Create a dictionary linking each sample with their control fastq e.g. { Mousekidney01 : controlIG16_TCGCTAGA_L001_R1_002.fastq.gz 16_TCGCTAGA_L001_R1_001.fastq.gz}  #
-# joining the list to allow for usage asa dictionary key
+# Joining the list to allow for usage as a dictionary key
 controlFastq = dict()
 for samp in SAMPLE_MARK:
     if CONTROL_NAME in samp:
@@ -54,7 +59,7 @@ for samp in SAMPLE_MARK:
         mark = samp.split("_")[-1]
         controlFastq[sample] = " ".join(FILES[sample][mark])
  
-# finding duplicate values from controlFastq by flipping it 
+# Finding duplicate values from controlFastq by flipping it 
 controlFastqFlipped = {} 
   
 for key, value in controlFastq.items():
@@ -65,7 +70,7 @@ for key, value in controlFastq.items():
   
 # controlFastqFlipped dict now is of length the number of unique controls, with the samples using those controls as values
 
-#mergedInputDit allows to create a generic name for the Inputs
+# mergedInputDit allows to create a generic name for the Inputs ( Input1, Input2 etc etc)
 mergedInputDict = controlFastqFlipped
 i = 1
 for key, value in controlFastqFlipped.items():
@@ -73,18 +78,18 @@ for key, value in controlFastqFlipped.items():
     mergedInputDict[key] = inputname
     i = i + 1
 
-#Now creating CONTROL_SAMPLE_DICT,  linking sample with their unique Input using the generic input name e.g. {Mousekidney: Input1}
+# Now creating CONTROL_SAMPLE_DICT,  linking sample with their unique Input using the generic input name e.g. {Mousekidney: Input1}
 CONTROL_SAMPLE_DICT = {}
 for key, value in controlFastq.items():
     CONTROL_SAMPLE_DICT[key] = mergedInputDict[value]
 
 
-#Flipping the flipped dictionary to have a link between generic input name and their corresponding file. Splitting back the file name
+# Flipping the flipped dictionary to have a link between generic input name and their corresponding fastq/Bam files. Splitting back the file name
 CONTROL_MERGED_FILES = {}
 for key, value in controlFastqFlipped.items():
     CONTROL_MERGED_FILES[value] = key.split(" ")
 
-#Creating the dictionnary for all sample name linked to their input file
+# Creating the dictionnary for all sample name linked to their input file
 CASES_SAMPLE_FILES = {}
 for case in CASES:
     sample = "_".join(case.split("_")[0:-1])
@@ -95,9 +100,14 @@ ALL_SAMPLE_FILES = {**CASES_SAMPLE_FILES, **CONTROL_MERGED_FILES}
 
 CONTROLS = list(CONTROL_MERGED_FILES.keys())
 
+# ~~~~~~~~~~~~~~ All samples ~~~~~~~~~~~~~~ #
+ALL_SAMPLES = CASES + CONTROLS
+
 # ======================================================== #
-#  Creating dictionaries to associate Marks with their samples and samples with their marks  #
-# ======================================================== #
+# ============= Creating helper dictionaries ============= #
+# ======================================================== # 
+
+# ~~~~~~~~~~~~~~ Samples dict ~~~~~~~~~~~~~ #
 
 # Regroup Marks or TF by sample
 # e.g. Mousekidney01: [H3K27, H3K27me3], Mouseliver04: [H3K27, H3K27me3]
@@ -111,6 +121,10 @@ for sample in sorted(FILES.keys()):
 for key in SAMPLES.keys():
     SAMPLES.setdefault(key,[]).append(CONTROL_SAMPLE_DICT[key])
 
+# ~~~~~~~~~~~ Samples_name dict ~~~~~~~~~~~ #
+
+# Regroup Marks or TF by sample using the full sample name SAMPLE_MARK
+# e.g. Mousekidney01: [Mousekidney01_H3K27, Mousekidney01_H3K27me3], Mouseliver04: [_Mouseliver04_H3K27, Mouseliver04_H3K27me3]
 SAMPLES_COMPLETE_NAME = dict()
 for sample in sorted(FILES.keys()):
     for mark in FILES[sample].keys():
@@ -121,6 +135,7 @@ for sample in sorted(FILES.keys()):
 for key in SAMPLES_COMPLETE_NAME.keys():
     SAMPLES_COMPLETE_NAME.setdefault(key,[]).append(CONTROL_SAMPLE_DICT[key])
 
+# ~~~~~~~~~~~~~~ Marks dicts ~~~~~~~~~~~~~~ #
 
 # Regroup samples per marks or TF
 # e.g. H3K27: [Mousekidney01, Mouseliver04], H3K27me3: [Mousekidney01, Mouseliver04]
@@ -130,26 +145,29 @@ for sample in sorted(FILES.keys()):
         if(mark not in CONTROL_NAME):
             MARKS.setdefault(mark, []).append(sample)
 
-#Here create a list with all makrs without the control
+# Here create a list with all marks without Input/Control mentionned, before adding the controls to the dict
 MARKS_NO_CONTROL = list(MARKS.keys())
 
-#Adding the key for the merged input
+# Adding the key for the merged input
 for key, value in CONTROL_SAMPLE_DICT.items():
     MARKS.setdefault(value, []).append(key)
 
+###########################################################################
+########################### Listing OUTPUT FILES ##########################
+###########################################################################
+
+# Not all of those output files will be use in the snakemake rules but it's good to have them all at the same place #
 
 
-#  list BAM files
-CONTROL_BAM = expand(os.path.join(WORKDIR, "03aln/{sample}.sorted.bam"), sample = CONTROL_MERGED_FILES)
-CASE_BAM = expand(os.path.join(WORKDIR, "03aln/{sample}.sorted.bam"), sample = CASES)
 
-#  peaks and bigwigs
+# ~~~~~~ files with case and control ~~~~~~ #
 ALL_PEAKS = []
 ALL_inputSubtract_BIGWIG = []
 ALL_BROADPEAK = []
 ALL_BIGWIGUCSC = []
 ALL_FEATURECOUNTS = []
 
+# going through all cases samples (sample_mark) #
 for case in CASES:
     sample = "_".join(case.split("_")[0:-1])
     control = CONTROL_SAMPLE_DICT[sample]
@@ -163,9 +181,13 @@ for case in CASES:
         ALL_BIGWIGUCSC.append(os.path.join(WORKDIR, "UCSC_compatible_bigWig/{}-subtract-{}.bw").format(case, control))
         ALL_FEATURECOUNTS.append(os.path.join(WORKDIR, "DPQC/{}-vs-{}.FRiP.summary").format(case,control))
 
-
-ALL_SAMPLES = CASES + CONTROLS
+# ~~~~~~~~~~~~~~~ Bam files ~~~~~~~~~~~~~~~ #
+CONTROL_BAM = expand(os.path.join(WORKDIR, "03aln/{sample}.sorted.bam"), sample = CONTROL_MERGED_FILES)
+CASE_BAM = expand(os.path.join(WORKDIR, "03aln/{sample}.sorted.bam"), sample = CASES)
 ALL_BAM     = CONTROL_BAM + CASE_BAM
+
+
+# ~~ All samples files (cases + control) ~~ #
 ALL_DOWNSAMPLE_BAM = expand(os.path.join(WORKDIR, "04aln_downsample/{sample}-downsample.sorted.bam"), sample = ALL_SAMPLES)
 ALL_FASTQ   = expand(os.path.join(WORKDIR, "01seq/{sample}.fastq"), sample = ALL_SAMPLES)
 ALL_FASTQC  = expand(os.path.join(WORKDIR, "02fqc/{sample}_fastqc.zip"), sample = ALL_SAMPLES)
@@ -176,46 +198,24 @@ ALL_FLAGSTAT = expand(os.path.join(WORKDIR, "03aln/{sample}.sorted.bam.flagstat"
 ALL_PHANTOM = expand(os.path.join(WORKDIR, "05phantompeakqual/{sample}.spp.out"), sample = ALL_SAMPLES)
 ALL_BIGWIG = expand(os.path.join(WORKDIR, "07bigwig/{sample}.bw"), sample = ALL_SAMPLES)
 
+# ~~~~~~~~~~~ Deeptools specific ~~~~~~~~~~ #
+# ---- Grouped by marks ---- #
 ALL_COMPUTEMATRIX = expand(os.path.join(WORKDIR, "DPQC/{mark}.computeMatrix.gz"), mark = MARKS)
 ALL_DPQC_PLOT = expand(os.path.join(WORKDIR, "DPQC/{mark}.plotHeatmap.png"), mark = MARKS)
+
+# --- Grouped by samples --- #
 ALL_DPQC_PLOT.extend(expand(os.path.join(WORKDIR, "DPQC/{samp}.fingerprint.png"), samp = SAMPLES))
 ALL_DPQC = expand(os.path.join(WORKDIR, "DPQC/{samp}.plotFingerprintOutRawCounts.txt"), samp = SAMPLES)
 ALL_DPQC.extend(expand(os.path.join(WORKDIR, "DPQC/{samp}.plotFingerprintOutQualityMetrics.txt"), samp = SAMPLES))
 
-
-ALL_QC = [os.path.join(WORKDIR, "10multiQC/multiQC_log.html")]
-
-ALL_CONFIG= [os.path.join(WORKDIR, "03aln/bams.json")]
-HUB_FOLDER = os.path.join(WORKDIR, "UCSC_HUB")
-ALL_HUB = [os.path.join(HUB_FOLDER,"{}.hub.txt").format(PROJECT_NAME)]
-
-
-
-
-if not BAM_INPUT:
-    ALL_MULTIQC_INPUT = ALL_FLAGSTAT + ALL_PHANTOM + ALL_DPQC + ALL_FEATURECOUNTS + ALL_FASTQC + ALL_BOWTIE_LOG 
-else:
-    ALL_MULTIQC_INPUT = ALL_FLAGSTAT + ALL_PHANTOM + ALL_DPQC + ALL_FEATURECOUNTS
-
-
-
-TARGETS = []
-TARGETS.extend(ALL_PEAKS)
-TARGETS.extend(ALL_QC)
-TARGETS.extend(ALL_HUB)
-
-if not BAM_INPUT:
-    TARGETS.extend(ALL_CONFIG)
-
-
-# Output files for ChromHMM
+# ~~~~~~~~~~~ ChromHMM specific ~~~~~~~~~~~ #
 if config["chromHMM"]:
 
     def get_chr(chromSize):
         with open(chromSize, 'r') as fs:
             chr = [line.rstrip().split('\t')[0] for line in fs]
             return(chr)
-    #Read histone
+    # Read histone
     HISTONE_INCLUDED = config["histone_for_chromHMM"].split(" ")
     HISTONE_CASES = [sample for sample in CASES if sample.split("_")[-1] in HISTONE_INCLUDED ]
     HISTONE_SAMPLE = list(set([sample.split("_")[0] for sample in CASES if sample.split("_")[-1] in HISTONE_INCLUDED ]))
@@ -223,52 +223,95 @@ if config["chromHMM"]:
     CHROMHMM = expand(os.path.join(WORKDIR, "chromHMM/learn_{nb_state}_states/{sample}_{nb_state}_segments.bed"), sample = HISTONE_SAMPLE, nb_state = config["state"])
     CHRHMM = get_chr(config['chromHmm_g'])
     CHROMHMM_TABLE = [os.path.join(WORKDIR, "chromHMM/cellmarkfiletable.txt")]
-    #Adding the ChromHMM outputs to rule all
+
+# ~~~~~~~~~~~~~~~~~~ Misc ~~~~~~~~~~~~~~~~~ #
+ALL_QC = [os.path.join(WORKDIR, "10multiQC/multiQC_log.html")]
+
+ALL_CONFIG= [os.path.join(WORKDIR, "03aln/bams.json")]
+
+HUB_FOLDER = os.path.join(WORKDIR, "UCSC_HUB")
+ALL_HUB = [os.path.join(HUB_FOLDER,"{}.hub.txt").format(PROJECT_NAME)]
+
+
+# ======================================================== #
+# ==================== MULTIQC inputs ==================== #
+# ======================================================== #
+
+# Depends on bam or fastq as input #
+if not BAM_INPUT:
+    ALL_MULTIQC_INPUT = ALL_FLAGSTAT + ALL_PHANTOM + ALL_DPQC + ALL_FEATURECOUNTS + ALL_FASTQC + ALL_BOWTIE_LOG 
+else:
+    ALL_MULTIQC_INPUT = ALL_FLAGSTAT + ALL_PHANTOM + ALL_DPQC + ALL_FEATURECOUNTS
+
+###########################################################################
+########################### Targets for rule all ##########################
+###########################################################################
+TARGETS = []
+TARGETS.extend(ALL_PEAKS)
+TARGETS.extend(ALL_QC)
+TARGETS.extend(ALL_HUB)
+
+#Temp. Since output from bam input are not used as input, needs to be put in the rule all for execution
+if not BAM_INPUT:
+    TARGETS.extend(ALL_CONFIG)
+
+
+# ~~~~~~~~~~~~~~~~ ChromHMM ~~~~~~~~~~~~~~~ #
     TARGETS.extend(CHROMHMM)
 
-# Aggregation of bigwigs by Marks or TF
+############################################################################
+############################ Wildcards functions ###########################
+############################################################################
+
+# ~ Aggregation of bigwigs by Marks or TF ~ #
+#TODO check is there will be no conflict here with inputs
 def get_big_wig_with_mark_or_tf(wildcards):
     samples = MARKS[wildcards.mark]
     bigwigs = list()
     for s in samples:
-        bigwigs.append(os.path.join(WORKDIR, "07bigwig/"+s+"_"+wildcards.mark+".bw"))
+        bigwigs.append(os.path.join(WORKDIR, "07bigwig/" + s + "_"+wildcards.mark+".bw"))
     return bigwigs
 
-# Aggregation of bams per sample
+# ~~~~~ Aggregation of bams per sample ~~~~ #
 def get_bams_per_sample(wildcards):
     marks = SAMPLES_COMPLETE_NAME[wildcards.samp]
     bams = list()
     for s in marks:
-        bams.append(os.path.join(WORKDIR, "03aln/"+s+".sorted.bam"))
+        bams.append(os.path.join(WORKDIR, "03aln/" + s + ".sorted.bam"))
     return bams
 
-# Aggregation of bam index per sample, necessary to avoid launching without bai
+# ~~~ Aggregation of bam idx per sample ~~~ #
 def get_bam_index_per_sample(wildcards):
     marks = SAMPLES_COMPLETE_NAME[wildcards.samp]
     bams = list()
     for s in marks:
-        bams.append(os.path.join(WORKDIR, "03aln/"+s+".sorted.bam.bai"))
+        bams.append(os.path.join(WORKDIR, "03aln/" + s + ".sorted.bam.bai"))
     return bams
 
-# Just return all marks or tf for a single sample using wildcards
+# ~~~~~~~~ marks or tf per samples ~~~~~~~~ #
 def get_all_marks_per_sample(wildcards):
     return SAMPLES[wildcards.samp]
 
-
-#  Get a list of fastq.gz files for the same mark, same sample
+# ~~~~~~ fastq files for sample_mark ~~~~~~ #
 def get_fastq(wildcards):
     return ALL_SAMPLE_FILES[wildcards.sample]
 
+# ~~~~~~~ bam files for sample_mark ~~~~~~~ #
 def get_bams(wildcards):
     return ALL_SAMPLE_FILES[wildcards.sample]
 
 
-
+#TODO see if this is usefull
 localrules: all
 
 rule all:
     input: TARGETS
 
+###########################################################################
+######################### Alignement using BOWTIE2 ########################
+###########################################################################
+
+# Those rules are only executed if inputs are fastq #
 if BAM_INPUT == False:
 
     #Now only for single-end ChIPseq
@@ -292,8 +335,8 @@ if BAM_INPUT == False:
             fastqc -o {params.output_dir} -f fastq --noextract {input} 2> {log}
             """
 
-    # Get the duplicates marked sorted bam, remove unmapped reads by samtools view -F 4 and duplicated reads by samblaster -r
-    # Samblaster should run before samtools sort
+    # Get the duplicates marked sorted bam, remove unmapped reads by samtools view -F 4 and duplicated reads by samblaster -r #
+    # Samblaster should run before samtools sort #
     rule align:
         input:  os.path.join(WORKDIR, "01seq/{sample}.fastq")
         output: os.path.join(WORKDIR, "03aln/{sample}.sorted.bam"), os.path.join(WORKDIR, "00log/{sample}.align")
@@ -316,7 +359,7 @@ if BAM_INPUT == False:
         """
 
     
-    # This rule is not followed by other rules, so its output has to be added to the rule all conditionally on BAM_INPUT, if Bam are used as input or not
+    # This rule is not followed by other rules, so its output has to be added to the rule all conditionally on BAM_INPUT, if Bam are used as input or not #
     rule create_bam_json:
         input: expand(os.path.join(WORKDIR, "03aln/{sample}.sorted.bam"), sample = ALL_SAMPLES),
         output: os.path.join(WORKDIR, "03aln/bams.json")
@@ -340,7 +383,11 @@ if BAM_INPUT == False:
                 outFile.write(json.dumps(dict_for_json, indent = 4))
 
 
+###########################################################################
+################################ BAM INPUT ################################
+###########################################################################
 
+# Pipeline can use bams as input #
 if BAM_INPUT:
 
     rule symlink_bam:
@@ -352,7 +399,7 @@ if BAM_INPUT:
             """
 
 
-# Simply indexing bams
+# ~~~~~~~~~~~~~ Indexing bams ~~~~~~~~~~~~~ #
 rule index_bam:
     input:  os.path.join(WORKDIR, "03aln/{sample}.sorted.bam")
     output: os.path.join(WORKDIR, "03aln/{sample}.sorted.bam.bai")
@@ -367,7 +414,12 @@ rule index_bam:
         samtools index {input} 2> {log}
         """
 
-# Check number of reads mapped by samtools flagstat, the output will be used for downsampling
+###########################################################################
+############################### Downsampling ##############################
+###########################################################################
+#  Using user provided parameters, bam will be downsampled. Flagstat is used for read counting and fed to sambamba  #
+
+# flagstat
 rule flagstat_bam:
     input:  os.path.join(WORKDIR, "03aln/{sample}.sorted.bam")
     output: os.path.join(WORKDIR, "03aln/{sample}.sorted.bam.flagstat")
@@ -382,23 +434,7 @@ rule flagstat_bam:
         samtools flagstat {input} > {output} 2> {log}
         """
 
-# Phantompeakqualtools computes a robust fragment length using the cross correlation (xcor) metrics.
-rule phantom_peak_qual:
-    input: 
-        bam = os.path.join(WORKDIR, "03aln/{sample}.sorted.bam"), 
-        bai = os.path.join(WORKDIR, "03aln/{sample}.sorted.bam.bai")
-    output: os.path.join(WORKDIR, "05phantompeakqual/{sample}.spp.out")
-    log: os.path.join(WORKDIR, "00log/{sample}.phantompeakqual.log")
-    threads: 4
-    conda:
-        "envs/spp.yml"
-    params: os.path.join(WORKDIR, "05phantompeakqual/")
-    message: "phantompeakqual for {input}"
-    shell:
-        """
-        run_spp -c={input.bam} -savp -rf -p=4 -odir={params}  -out={output} -tmpdir={params} 2> {log}
-        """
-# Downsampling for relative comparisons of samples
+#downsampling
 rule down_sample:
     input: 
         bam = os.path.join(WORKDIR, "03aln/{sample}.sorted.bam"), 
@@ -419,34 +455,26 @@ rule down_sample:
         sambamba view -f bam -t 5 --subsampling-seed=3 -s `sed '5q;d' {input.flagstat} | cut -d" " -f1 | awk '{{ratio = {config[target_reads]}/$0}};{{if(ratio < 1 )print ratio; else print 1}}'` {input.bam} | samtools sort -m 2G -@ 5 -T {output.bam}.tmp > {output.bam} 2> {log}
         samtools index {output.bam}
         """
-rule make_inputSubtract_bigwigs:
-    input : 
-        control = os.path.join(WORKDIR, "04aln_downsample/{control}-downsample.sorted.bam"), 
-        case =  os.path.join(WORKDIR, "04aln_downsample/{case}-downsample.sorted.bam")
-    output:  os.path.join(WORKDIR, "06bigwig_inputSubtract/{case}-subtract-{control}.bw")
-    log: os.path.join(WORKDIR, "00log/{case}-vs-{control}inputSubtract.makebw")
-    threads: 5
-    conda:
-        "envs/full-atac-main-env.yml"
-    params: jobname = "{case}"
-    message: "making input subtracted bigwig for {input}"
-    shell:
-        """
-        bamCompare --bamfile1 {input.case} --bamfile2 {input.control} --normalizeUsing RPKM  --operation log2 --operation first --scaleFactorsMethod None --binSize 30 --smoothLength 300 -p 5  --extendReads 200 -o {output} 2> {log}
-        """
 
-rule make_bigwigs:
-    input : os.path.join(WORKDIR, "04aln_downsample/{sample}-downsample.sorted.bam"), os.path.join(WORKDIR, "04aln_downsample/{sample}-downsample.sorted.bam.bai")
-    output: os.path.join(WORKDIR, "07bigwig/{sample}.bw")
-    log: os.path.join(WORKDIR, "00log/{sample}.makebw")
-    threads: 5
+###########################################################################
+#################################### QC ###################################
+###########################################################################
+
+# Phantompeakqualtools computes a robust fragment length using the cross correlation (xcor) metrics.
+rule phantom_peak_qual:
+    input: 
+        bam = os.path.join(WORKDIR, "03aln/{sample}.sorted.bam"), 
+        bai = os.path.join(WORKDIR, "03aln/{sample}.sorted.bam.bai")
+    output: os.path.join(WORKDIR, "05phantompeakqual/{sample}.spp.out")
+    log: os.path.join(WORKDIR, "00log/{sample}.phantompeakqual.log")
+    threads: 4
     conda:
-        "envs/full-atac-main-env.yml"
-    params: jobname = "{sample}"
-    message: "making bigwig for {input}"
+        "envs/spp.yml"
+    params: os.path.join(WORKDIR, "05phantompeakqual/")
+    message: "phantompeakqual for {input}"
     shell:
         """
-        bamCoverage -b {input[0]} --normalizeUsing RPKM --binSize 30 --smoothLength 300 -p 5 --extendReads 200 -o {output} 2> {log}
+        run_spp -c={input.bam} -savp -rf -p=4 -odir={params}  -out={output} -tmpdir={params} 2> {log}
         """
 
 # Deeptools QC
@@ -472,7 +500,7 @@ rule plotHeatmap:
         plotHeatmap -m {input} -out {output} --colorMap jet
         """
 
-# # ChipSeq QCs plots from deeptools. Plotfingerprints are really usefull to see focal enrichment of your CHip-Seq enrichment
+# ChipSeq QCs plots from deeptools. Plotfingerprints are really usefull to see focal enrichment of your CHip-Seq enrichment
 rule plotFingerPrint:
     input:
         bam = get_bams_per_sample, 
@@ -490,19 +518,27 @@ rule plotFingerPrint:
         plotFingerprint -b {input.bam} --plotFile {output.plot} --labels {params.labels} --region chr1 --skipZeros --numberOfSamples 100000 --minMappingQuality 30 --plotTitle {wildcards.samp} --outRawCounts {output.rawCounts} --outQualityMetrics {output.qualityMetrics}
         """
 
-rule get_UCSC_bigwig:
-    input : os.path.join(WORKDIR, "06bigwig_inputSubtract/{case}-subtract-{control}.bw")
-    output : os.path.join(WORKDIR, "UCSC_compatible_bigWig/{case}-subtract-{control}.bw")
-    params : 
-        wig1 = os.path.join(WORKDIR, "06bigwig_inputSubtract/{case}-subtract-{control}.temp.wig"), 
-        wig2 = os.path.join(WORKDIR, "06bigwig_inputSubtract/{case}-subtract-{control}.temp2.wig")
+rule get_FRiP:
+    input:
+        peaks = os.path.join(WORKDIR, "09peak_macs2/{case}-vs-{control}-macs2_peaks.broadPeak"),
+        bam = os.path.join(WORKDIR, "03aln/{case}.sorted.bam"), 
+    output:
+        os.path.join(WORKDIR, "DPQC/{case}-vs-{control}.FRiP.summary")
+    params:
+        saf = os.path.join(WORKDIR, "DPQC/{case}.saf"),
+        outputName = os.path.join(WORKDIR, "DPQC/{case}-vs-{control}.FRiP")
+    conda:
+        "envs/full-atac-main-env.yml"
     shell:
         """
-        scripts/bigWigToWig {input} {params.wig1}
-        sed -r 's/^[0-9]|^X|^Y|^MT/chr&/g' {params.wig1} | LC_COLLATE=C sort -k1,1 -k2,2n > {params.wig2}
-        scripts/wigToBigWig {params.wig2} ~/genome_size_UCSC_compatible_GRCh37.75.txt {output}
-        rm {params.wig1} {params.wig2}
+        awk 'BEGIN{{OFS="\t";print "GeneID", "Chr","Start","End","Strand"}}{{print $4,$1,$2,$3,$6}}' {input.peaks} > {params.saf}
+        featureCounts -a {params.saf} -F SAF -o {params.outputName} {input.bam}
         """
+
+
+###########################################################################
+############################### PEAK CALLING ##############################
+###########################################################################
 
 # Peak calling using MACS
 rule call_peaks_macs1:
@@ -560,21 +596,52 @@ rule call_peaks_macs2:
             --outdir {params.outdir} -n {params.name} -p {config[macs2_pvalue]} --broad --broad-cutoff {config[macs2_pvalue_broad]} --nomodel &> {log}
         """
 
-rule get_FRiP:
-    input:
-        peaks = os.path.join(WORKDIR, "09peak_macs2/{case}-vs-{control}-macs2_peaks.broadPeak"),
-        bam = os.path.join(WORKDIR, "03aln/{case}.sorted.bam"), 
-    output:
-        os.path.join(WORKDIR, "DPQC/{case}-vs-{control}.FRiP.summary")
-    params:
-        saf = os.path.join(WORKDIR, "DPQC/{case}.saf"),
-        outputName = os.path.join(WORKDIR, "DPQC/{case}-vs-{control}.FRiP")
+###########################################################################
+####### VISUALIZATION bigWig and bigBed generation and HUB creation #######
+###########################################################################
+
+rule make_inputSubtract_bigwigs:
+    input : 
+        control = os.path.join(WORKDIR, "04aln_downsample/{control}-downsample.sorted.bam"), 
+        case =  os.path.join(WORKDIR, "04aln_downsample/{case}-downsample.sorted.bam")
+    output:  os.path.join(WORKDIR, "06bigwig_inputSubtract/{case}-subtract-{control}.bw")
+    log: os.path.join(WORKDIR, "00log/{case}-vs-{control}inputSubtract.makebw")
+    threads: 5
     conda:
         "envs/full-atac-main-env.yml"
+    params: jobname = "{case}"
+    message: "making input subtracted bigwig for {input}"
     shell:
         """
-        awk 'BEGIN{{OFS="\t";print "GeneID", "Chr","Start","End","Strand"}}{{print $4,$1,$2,$3,$6}}' {input.peaks} > {params.saf}
-        featureCounts -a {params.saf} -F SAF -o {params.outputName} {input.bam}
+        bamCompare --bamfile1 {input.case} --bamfile2 {input.control} --normalizeUsing RPKM  --operation log2 --operation first --scaleFactorsMethod None --binSize 30 --smoothLength 300 -p 5  --extendReads 200 -o {output} 2> {log}
+        """
+
+rule make_bigwigs:
+    input : os.path.join(WORKDIR, "04aln_downsample/{sample}-downsample.sorted.bam"), os.path.join(WORKDIR, "04aln_downsample/{sample}-downsample.sorted.bam.bai")
+    output: os.path.join(WORKDIR, "07bigwig/{sample}.bw")
+    log: os.path.join(WORKDIR, "00log/{sample}.makebw")
+    threads: 5
+    conda:
+        "envs/full-atac-main-env.yml"
+    params: jobname = "{sample}"
+    message: "making bigwig for {input}"
+    shell:
+        """
+        bamCoverage -b {input[0]} --normalizeUsing RPKM --binSize 30 --smoothLength 300 -p 5 --extendReads 200 -o {output} 2> {log}
+        """
+
+rule get_UCSC_bigwig:
+    input : os.path.join(WORKDIR, "06bigwig_inputSubtract/{case}-subtract-{control}.bw")
+    output : os.path.join(WORKDIR, "UCSC_compatible_bigWig/{case}-subtract-{control}.bw")
+    params : 
+        wig1 = os.path.join(WORKDIR, "06bigwig_inputSubtract/{case}-subtract-{control}.temp.wig"), 
+        wig2 = os.path.join(WORKDIR, "06bigwig_inputSubtract/{case}-subtract-{control}.temp2.wig")
+    shell:
+        """
+        scripts/bigWigToWig {input} {params.wig1}
+        sed -r 's/^[0-9]|^X|^Y|^MT/chr&/g' {params.wig1} | LC_COLLATE=C sort -k1,1 -k2,2n > {params.wig2}
+        scripts/wigToBigWig {params.wig2} ~/genome_size_UCSC_compatible_GRCh37.75.txt {output}
+        rm {params.wig1} {params.wig2}
         """
 
 # Cleaning broadGapped peak by adding "chr" on chr, sorting, setting score > 1000 to 1000 with awk then converting to bigbed
@@ -607,8 +674,11 @@ rule get_UCSC_hub:
         python3 scripts/makeUCSCtrackHub.py --hub_name {PROJECT_NAME} --sample_name {params.sample_name} --categories {params.categories} --output_dir {params.output_dir} --peaks {input.bed} --bw {input.bigwig} 2> makehub.err
         """
 
-# MultiQC: Takes flagstats, fastqc, phantompeakqualtools and the deeptools outputs
+###########################################################################
+################################# MULTIQC #################################
+###########################################################################
 
+# MultiQC: Takes fastqc, phantompeakqualtools, deeptools, bowtie and feature counts
 rule multiQC:
     input : ALL_MULTIQC_INPUT
     output: ALL_QC
