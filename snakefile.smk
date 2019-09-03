@@ -257,6 +257,7 @@ if not BAM_INPUT:
 
 
 # ~~~~~~~~~~~~~~~~ ChromHMM ~~~~~~~~~~~~~~~ #
+if config["chromHMM"]:
     TARGETS.extend(CHROMHMM)
 
 ############################################################################
@@ -696,6 +697,7 @@ rule multiQC:
 # This allow for all necessary steps for ChromHMM execution with the number of states declared in the config file 
 
 if config["chromHMM"]:
+
     rule bam2bed:
         input :
             os.path.join(WORKDIR, "04aln_downsample/{sample}-downsample.sorted.bam")
