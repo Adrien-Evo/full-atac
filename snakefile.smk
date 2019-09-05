@@ -129,7 +129,7 @@ SAMPLES_COMPLETE_NAME = dict()
 for sample in sorted(FILES.keys()):
     for mark in FILES[sample].keys():
         if(mark not in CONTROL_NAME):
-            SAMPLES_COMPLETE_NAME.setdefault(sample, []).append(sample + "_"+ mark)
+            SAMPLES_COMPLETE_NAME.setdefault(sample, []).append(sample + "_" + mark)
 
 # Adding the proper merged input to the marks of each samples
 for key in SAMPLES_COMPLETE_NAME.keys():
@@ -152,12 +152,28 @@ MARKS_NO_CONTROL = list(MARKS.keys())
 for key, value in CONTROL_SAMPLE_DICT.items():
     MARKS.setdefault(value, []).append(key)
 
+# ~~~~~~~~~~~~~~ Marks_name dicts ~~~~~~~~~~~~~~ #
+
+# Regroup samples per marks or TF
+# e.g. H3K27: [Mousekidney01, Mouseliver04], H3K27me3: [Mousekidney01, Mouseliver04]
+MARKS_COMPLETE_NAME = dict()
+for sample in sorted(FILES.keys()):
+    for mark in FILES[sample].keys():
+        if(mark not in CONTROL_NAME):
+            MARKS_COMPLETE_NAME.setdefault(mark, []).append(sample + "_"  + mark)
+
+# Here create a list with all marks without Input/Control mentionned, before adding the controls to the dict
+MARKS_NO_CONTROL_COMPLETE_NAME = list(MARKS_COMPLETE_NAME.keys())
+
+# Adding the key for the merged input
+for key, value in CONTROL_SAMPLE_DICT.items():
+    MARKS_COMPLETE_NAME.setdefault(value, []).append(key)
+
 ###########################################################################
 ########################### Listing OUTPUT FILES ##########################
 ###########################################################################
 
 # Not all of those output files will be use in the snakemake rules but it's good to have them all at the same place #
-
 
 
 # ~~~~~~ files with case and control ~~~~~~ #
@@ -239,9 +255,9 @@ ALL_HUB = [os.path.join(HUB_FOLDER,"{}.hub.txt").format(PROJECT_NAME)]
 
 # Depends on bam or fastq as input #
 if not BAM_INPUT:
-    ALL_MULTIQC_INPUT = ALL_FLAGSTAT + ALL_PHANTOM + ALL_DPQC + ALL_FEATURECOUNTS + ALL_FASTQC + ALL_BOWTIE_LOG 
+    ALL_MULTIQC_INPUT = ALL_PHANTOM + ALL_DPQC + ALL_FEATURECOUNTS + ALL_FASTQC + ALL_BOWTIE_LOG 
 else:
-    ALL_MULTIQC_INPUT = ALL_FLAGSTAT + ALL_PHANTOM + ALL_DPQC + ALL_FEATURECOUNTS
+    ALL_MULTIQC_INPUT = ALL_PHANTOM + ALL_DPQC + ALL_FEATURECOUNTS
 
 ###########################################################################
 ########################### Targets for rule all ##########################
@@ -255,6 +271,9 @@ TARGETS.extend(ALL_HUB)
 if not BAM_INPUT:
     TARGETS.extend(ALL_CONFIG)
 
+#TEMP
+TARGETS.extend(ALL_DPQC_PLOT)
+
 
 # ~~~~~~~~~~~~~~~~ ChromHMM ~~~~~~~~~~~~~~~ #
 if config["chromHMM"]:
@@ -267,10 +286,13 @@ if config["chromHMM"]:
 # ~ Aggregation of bigwigs by Marks or TF ~ #
 #TODO check is there will be no conflict here with inputs
 def get_big_wig_with_mark_or_tf(wildcards):
-    samples = MARKS[wildcards.mark]
+    samples = MARKS_COMPLETE_NAME[wildcards.mark]
     bigwigs = list()
-    for s in samples:
-        bigwigs.append(os.path.join(WORKDIR, "07bigwig/" + s + "_"+wildcards.mark+".bw"))
+    if wildcards.mark in CONTROLS:
+            bigwigs.append(os.path.join(WORKDIR, "07bigwig/" + wildcards.mark + ".bw"))
+    else:
+        for s in samples:
+            bigwigs.append(os.path.join(WORKDIR, "07bigwig/" + s + ".bw"))
     return bigwigs
 
 # ~~~~~ Aggregation of bams per sample ~~~~ #
@@ -291,7 +313,7 @@ def get_bam_index_per_sample(wildcards):
 
 # ~~~~~~~~ marks or tf per samples ~~~~~~~~ #
 def get_all_marks_per_sample(wildcards):
-    return SAMPLES[wildcards.samp]
+    return SAMPLES_COMPLETE_NAME[wildcards.samp]
 
 # ~~~~~~ fastq files for sample_mark ~~~~~~ #
 def get_fastq(wildcards):
