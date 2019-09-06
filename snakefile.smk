@@ -363,11 +363,11 @@ if BAM_INPUT == False:
     # Samblaster should run before samtools sort #
     rule align:
         input:  os.path.join(WORKDIR, "01seq/{sample}.fastq")
-        output: os.path.join(WORKDIR, "03aln/{sample}.sorted.bam"), os.path.join(WORKDIR, "00log/{sample}.align")
+        output: os.path.join(WORKDIR, "03aln/{sample}.temp.bam"), os.path.join(WORKDIR, "00log/{sample}.align")
         threads: CLUSTER["align"]["cpu"]
         conda:
             "envs/full-atac-main-env.yml"
-        params:
+        params: 
             bowtie = " --chunkmbs 320 -m 1 --best -p 5 ", 
             jobname = "{sample}"
         message: "aligning {input}: 16 threads"
@@ -377,11 +377,25 @@ if BAM_INPUT == False:
         shell:
             """
             bowtie2 -p 4 -x {config[idx_bt1]} -q {input} 2> {log.bowtie} \
-            | samblaster --removeDups \
-        | samtools view -Sb -F 4 - \
-        | samtools sort -m 8G -@ 4 -T {output[0]}.tmp -o {output[0]} 2> {log.markdup}
-        """
+            | samtools view -Sb -F 4 - \
+            | samtools sort -m 8G -@ 4 -T {output[0]}.tmp -o {output[0]} 2> {log.markdup}
+            """
 
+    rule clean_alignment:
+        input:  os.path.join(WORKDIR, "03aln/{sample}.temp.bam")
+        output: os.path.join(WORKDIR, "03aln/{sample}.sorted.bam")
+        threads: CLUSTER["align"]["cpu"]
+        conda:
+            "envs/full-atac-main-env.yml"
+        params:  
+            jobname = "{sample}"
+        message: "aligning {input}: 16 threads"
+        shell:
+            """
+            samtools view -Sb -F 4 {input} \
+            | samblaster --removeDups \
+            | samtools sort -m 8G -@ 4 -T {output[0]}.tmp -o {output[0]}
+            """
     
     # This rule is not followed by other rules, so its output has to be added to the rule all conditionally on BAM_INPUT, if Bam are used as input or not #
     rule create_bam_json:
