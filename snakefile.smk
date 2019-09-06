@@ -182,6 +182,7 @@ ALL_inputSubtract_BIGWIG = []
 ALL_BROADPEAK = []
 ALL_BIGWIGUCSC = []
 ALL_FEATURECOUNTS = []
+ALL_BROADPEAKCOUNTS = []
 
 # going through all cases samples (sample_mark) #
 for case in CASES:
@@ -196,6 +197,7 @@ for case in CASES:
         ALL_BROADPEAK.append(os.path.join(WORKDIR, "12UCSC_broad/{}-vs-{}-macs2_peaks.broadPeak").format(case, control))
         ALL_BIGWIGUCSC.append(os.path.join(WORKDIR, "UCSC_compatible_bigWig/{}-subtract-{}.bw").format(case, control))
         ALL_FEATURECOUNTS.append(os.path.join(WORKDIR, "DPQC/{}-vs-{}.FRiP.summary").format(case,control))
+        ALL_BROADPEAKCOUNTS.append(os.path.join(WORKDIR, "DPQC/{}-vs-{}-broadpeak-count_mqc.json").format(case,control))
 
 # ~~~~~~~~~~~~~~~ Bam files ~~~~~~~~~~~~~~~ #
 CONTROL_BAM = expand(os.path.join(WORKDIR, "03aln/{sample}.sorted.bam"), sample = CONTROL_MERGED_FILES)
@@ -255,9 +257,9 @@ ALL_HUB = [os.path.join(HUB_FOLDER,"{}.hub.txt").format(PROJECT_NAME)]
 
 # Depends on bam or fastq as input #
 if not BAM_INPUT:
-    ALL_MULTIQC_INPUT = ALL_PHANTOM + ALL_DPQC + ALL_FEATURECOUNTS + ALL_FASTQC + ALL_BOWTIE_LOG 
+    ALL_MULTIQC_INPUT = ALL_PHANTOM + ALL_DPQC + ALL_FEATURECOUNTS + ALL_BROADPEAKCOUNTS + ALL_FASTQC + ALL_BOWTIE_LOG 
 else:
-    ALL_MULTIQC_INPUT = ALL_PHANTOM + ALL_DPQC + ALL_FEATURECOUNTS
+    ALL_MULTIQC_INPUT = ALL_PHANTOM + ALL_DPQC + ALL_FEATURECOUNTS+ ALL_BROADPEAKCOUNTS
 
 ###########################################################################
 ########################### Targets for rule all ##########################
@@ -284,7 +286,6 @@ if config["chromHMM"]:
 ############################################################################
 
 # ~ Aggregation of bigwigs by Marks or TF ~ #
-#TODO check is there will be no conflict here with inputs
 def get_big_wig_with_mark_or_tf(wildcards):
     samples = MARKS_COMPLETE_NAME[wildcards.mark]
     bigwigs = list()
@@ -556,6 +557,19 @@ rule get_FRiP:
         """
         awk 'BEGIN{{OFS="\t";print "GeneID", "Chr","Start","End","Strand"}}{{print $4,$1,$2,$3,$6}}' {input.peaks} > {params.saf}
         featureCounts -a {params.saf} -F SAF -o {params.outputName} {input.bam}
+        """
+rule get_broad_peak_counts:
+    input:
+        peaks = os.path.join(WORKDIR, "09peak_macs2/{case}-vs-{control}-macs2_peaks.broadPeak"),
+    output:
+        os.path.join(WORKDIR, "DPQC/{case}-vs-{control}-broadpeak-count_mqc.json")
+    params:
+        peakType = "broadPeak"
+    conda:
+        "envs/full-atac-main-env.yml"
+    shell:
+        """
+        python3 scripts/count_peaks.py --peak_type {params.peakType} --peaks {input.peaks} --sample_name {wildcards.case} > {output}
         """
 
 
