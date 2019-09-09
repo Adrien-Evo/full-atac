@@ -250,7 +250,6 @@ ALL_CONFIG= [os.path.join(WORKDIR, "03aln/bams.json")]
 HUB_FOLDER = os.path.join(WORKDIR, "UCSC_HUB")
 ALL_HUB = [os.path.join(HUB_FOLDER,"{}.hub.txt").format(PROJECT_NAME)]
 
-
 # ======================================================== #
 # ==================== MULTIQC inputs ==================== #
 # ======================================================== #
@@ -275,7 +274,6 @@ if not BAM_INPUT:
 
 #TEMP
 TARGETS.extend(ALL_DPQC_PLOT)
-
 
 # ~~~~~~~~~~~~~~~~ ChromHMM ~~~~~~~~~~~~~~~ #
 if config["chromHMM"]:
@@ -372,8 +370,7 @@ if BAM_INPUT == False:
             jobname = "{sample}"
         message: "aligning {input}: 16 threads"
         log:
-            bowtie = os.path.join(WORKDIR, "00log/{sample}.align"), 
-            markdup = os.path.join(WORKDIR, "00log/{sample}.markdup")
+            bowtie = os.path.join(WORKDIR, "00log/{sample}.align")
         shell:
             """
             bowtie2 -p 4 -x {config[idx_bt1]} -q {input} 2> {log.bowtie} \
@@ -436,7 +433,6 @@ if BAM_INPUT:
             ln -s {input} {output}
             """
 
-
 # ~~~~~~~~~~~~~ Indexing bams ~~~~~~~~~~~~~ #
 rule index_bam:
     input:  os.path.join(WORKDIR, "03aln/{sample}.sorted.bam")
@@ -498,6 +494,8 @@ rule down_sample:
 #################################### QC ###################################
 ###########################################################################
 
+        """
+
 # Phantompeakqualtools computes a robust fragment length using the cross correlation (xcor) metrics.
 rule phantom_peak_qual:
     input: 
@@ -556,7 +554,7 @@ rule plotFingerPrint:
         plotFingerprint -b {input.bam} --plotFile {output.plot} --labels {params.labels} --region chr1 --skipZeros --numberOfSamples 100000 --minMappingQuality 30 --plotTitle {wildcards.samp} --outRawCounts {output.rawCounts} --outQualityMetrics {output.qualityMetrics}
         """
 
-rule get_FRiP:
+rule get_FRiP_for_multiqc:
     input:
         peaks = os.path.join(WORKDIR, "09peak_macs2/{case}-vs-{control}-macs2_peaks.broadPeak"),
         bam = os.path.join(WORKDIR, "03aln/{case}.sorted.bam"), 
@@ -572,7 +570,7 @@ rule get_FRiP:
         awk 'BEGIN{{OFS="\t";print "GeneID", "Chr","Start","End","Strand"}}{{print $4,$1,$2,$3,$6}}' {input.peaks} > {params.saf}
         featureCounts -a {params.saf} -F SAF -o {params.outputName} {input.bam}
         """
-rule get_broad_peak_counts:
+rule get_broad_peak_counts_for_multiqc:
     input:
         peaks = os.path.join(WORKDIR, "09peak_macs2/{case}-vs-{control}-macs2_peaks.broadPeak"),
     output:
