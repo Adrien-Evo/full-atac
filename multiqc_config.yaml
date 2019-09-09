@@ -1,0 +1,43 @@
+title: "MultiQC ChIP-seq report"
+subtitle: "Generated from the full-chipseq pipeline"
+intro_text: "MultiQC reports summarise analysis results."
+report_comment: "This is a comment about this report."
+
+
+report_header_info:
+    - Contact E-mail: 'adrien.foucal@gmail.com'
+    - Pipeline Type: 'ChIP-seq'
+
+
+
+custom_data:
+    encode_metrics:
+        plot_type: 'generalstats'
+        file_format: 'tsv'
+        pconfig:
+            - NRF:
+                namespace: "NRF"
+                title: "NRF"
+                description: "ratio between the number of positions in the genome that uniquely mapped reads map to and the total number of uniquely mappable reads"
+                max: 1
+                min: 0
+                scale: 'RdYlGn'
+            - PBC1:
+                namespace: "PBC1"
+                title: "PBC1"
+                description: "ratio of genomic locations with EXACTLY one read pair over the genomic locations with AT LEAST one read pair"
+                max: 1
+                min: 0
+                scale: 'RdYlGn'
+            - PBC2:
+                namespace: "PBC2"
+                title: "PBC2"
+                description: "ratio of genomic locations with EXACTLY one read pair over the genomic locations with EXACTLY two read pairs"
+                max: 10
+                min: 0
+                scale: 'RdYlGn'
+
+
+sp:
+    encode_metrics:
+        fn: '*encodeQC.txt'

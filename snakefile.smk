@@ -244,12 +244,11 @@ if config["chromHMM"]:
 
 # ~~~~~~~~~~~~~~~~~~ Misc ~~~~~~~~~~~~~~~~~ #
 ALL_QC = [os.path.join(WORKDIR, "10multiQC/multiQC_log.html")]
-
+ALL_ENCODE = expand(os.path.join(WORKDIR, "DPQC/{sample}.encodeQC.txt"), sample = ALL_SAMPLES)
 ALL_CONFIG= [os.path.join(WORKDIR, "03aln/bams.json")]
 
 HUB_FOLDER = os.path.join(WORKDIR, "UCSC_HUB")
 ALL_HUB = [os.path.join(HUB_FOLDER,"{}.hub.txt").format(PROJECT_NAME)]
-
 
 # ======================================================== #
 # ==================== MULTIQC inputs ==================== #
@@ -257,9 +256,9 @@ ALL_HUB = [os.path.join(HUB_FOLDER,"{}.hub.txt").format(PROJECT_NAME)]
 
 # Depends on bam or fastq as input #
 if not BAM_INPUT:
-    ALL_MULTIQC_INPUT = ALL_PHANTOM + ALL_DPQC + ALL_FEATURECOUNTS + ALL_BROADPEAKCOUNTS + ALL_FASTQC + ALL_BOWTIE_LOG 
+    ALL_MULTIQC_INPUT = ALL_PHANTOM + ALL_DPQC + ALL_FEATURECOUNTS + ALL_BROADPEAKCOUNTS + ALL_ENCODE + ALL_FASTQC + ALL_BOWTIE_LOG 
 else:
-    ALL_MULTIQC_INPUT = ALL_PHANTOM + ALL_DPQC + ALL_FEATURECOUNTS+ ALL_BROADPEAKCOUNTS
+    ALL_MULTIQC_INPUT = ALL_PHANTOM + ALL_DPQC + ALL_FEATURECOUNTS + ALL_ENCODE + ALL_BROADPEAKCOUNTS
 
 ###########################################################################
 ########################### Targets for rule all ##########################
@@ -275,7 +274,6 @@ if not BAM_INPUT:
 
 #TEMP
 TARGETS.extend(ALL_DPQC_PLOT)
-
 
 # ~~~~~~~~~~~~~~~~ ChromHMM ~~~~~~~~~~~~~~~ #
 if config["chromHMM"]:
@@ -359,29 +357,45 @@ if BAM_INPUT == False:
             fastqc -o {params.output_dir} -f fastq --noextract {input} 2> {log}
             """
 
-    # Get the duplicates marked sorted bam, remove unmapped reads by samtools view -F 4 and duplicated reads by samblaster -r #
-    # Samblaster should run before samtools sort #
+    # Simple alignment with bowtie 2 followed by sorting #
     rule align:
         input:  os.path.join(WORKDIR, "01seq/{sample}.fastq")
-        output: os.path.join(WORKDIR, "03aln/{sample}.sorted.bam"), os.path.join(WORKDIR, "00log/{sample}.align")
+        output: os.path.join(WORKDIR, "03aln/{sample}.temp.bam"), os.path.join(WORKDIR, "00log/{sample}.align")
         threads: CLUSTER["align"]["cpu"]
         conda:
             "envs/full-atac-main-env.yml"
-        params:
+        params: 
             bowtie = " --chunkmbs 320 -m 1 --best -p 5 ", 
             jobname = "{sample}"
         message: "aligning {input}: 16 threads"
         log:
-            bowtie = os.path.join(WORKDIR, "00log/{sample}.align"), 
-            markdup = os.path.join(WORKDIR, "00log/{sample}.markdup")
+            bowtie2 = os.path.join(WORKDIR, "00log/{sample}.align")
         shell:
             """
-            bowtie2 -p 4 -x {config[idx_bt1]} -q {input} 2> {log.bowtie} \
-            | samblaster --removeDups \
-        | samtools view -Sb -F 4 - \
-        | samtools sort -m 8G -@ 4 -T {output[0]}.tmp -o {output[0]} 2> {log.markdup}
-        """
+            bowtie2 -p 4 -x {config[idx_bt1]} -q {input} 2> {log.bowtie2} \
+            | samtools view -Sb -F 4 - \
+            | samtools sort -m 8G -@ 4 -T {output[0]}.tmp -o {output[0]}
+            """
 
+    # Get the duplicates marked sorted bam, remove unmapped reads by samtools view -F 4 and duplicated reads by samblaster -r #
+    # Samblaster should run before samtools sort #
+    rule clean_alignment:
+        input:  os.path.join(WORKDIR, "03aln/{sample}.temp.bam")
+        output: os.path.join(WORKDIR, "03aln/{sample}.sorted.bam")
+        threads: CLUSTER["align"]["cpu"]
+        conda:
+            "envs/full-atac-main-env.yml"
+        params:  
+            jobname = "{sample}"
+        log:
+            samblaster  = os.path.join(WORKDIR, "00log/{sample}.samblaster")
+        message: "aligning {input}: 16 threads"
+        shell:
+            """
+            samtools view -Sb -F 4 {input} \
+            | samblaster --removeDups {log.samblaster} \
+            | samtools sort -m 8G -@ 4 -T {output[0]}.tmp -o {output[0]}
+            """
     
     # This rule is not followed by other rules, so its output has to be added to the rule all conditionally on BAM_INPUT, if Bam are used as input or not #
     rule create_bam_json:
@@ -421,7 +435,6 @@ if BAM_INPUT:
             """
             ln -s {input} {output}
             """
-
 
 # ~~~~~~~~~~~~~ Indexing bams ~~~~~~~~~~~~~ #
 rule index_bam:
@@ -484,6 +497,22 @@ rule down_sample:
 #################################### QC ###################################
 ###########################################################################
 
+#Library complexity
+rule encode_complexity:
+    input: 
+        bam = os.path.join(WORKDIR, "03aln/{sample}.temp.bam") 
+    output: 
+        os.path.join(WORKDIR, "DPQC/{sample}.encodeQC.txt")
+    threads: 4
+    conda:
+        "envs/full-atac-main-env.yml"
+    shell:
+        """
+        bedtools bamtobed -i {input} | awk 'BEGIN{{OFS="\t"}}{{print $1,$2,$3,$6}}' | grep -v 'chrM' | sort | uniq -c \
+        | awk 'BEGIN{{mt=0;m0=0;m1=0;m2=0;OFS="\t"}} ($1==1){{m1=m1+1}} ($1==2){{m2=m2+1}} {{m0=m0+1}} {{mt=mt+$1}} \
+        END{{m1_m2=-1.0; if(m2>0) m1_m2=m1/m2; print "Sample Name","NRF","PBC1","PBC2"; print "{wildcards.sample}",m0/mt,m1/m0,m1_m2}}' > {output}
+        """
+
 # Phantompeakqualtools computes a robust fragment length using the cross correlation (xcor) metrics.
 rule phantom_peak_qual:
     input: 
@@ -542,7 +571,7 @@ rule plotFingerPrint:
         plotFingerprint -b {input.bam} --plotFile {output.plot} --labels {params.labels} --region chr1 --skipZeros --numberOfSamples 100000 --minMappingQuality 30 --plotTitle {wildcards.samp} --outRawCounts {output.rawCounts} --outQualityMetrics {output.qualityMetrics}
         """
 
-rule get_FRiP:
+rule get_FRiP_for_multiqc:
     input:
         peaks = os.path.join(WORKDIR, "09peak_macs2/{case}-vs-{control}-macs2_peaks.broadPeak"),
         bam = os.path.join(WORKDIR, "03aln/{case}.sorted.bam"), 
@@ -558,7 +587,7 @@ rule get_FRiP:
         awk 'BEGIN{{OFS="\t";print "GeneID", "Chr","Start","End","Strand"}}{{print $4,$1,$2,$3,$6}}' {input.peaks} > {params.saf}
         featureCounts -a {params.saf} -F SAF -o {params.outputName} {input.bam}
         """
-rule get_broad_peak_counts:
+rule get_broad_peak_counts_for_multiqc:
     input:
         peaks = os.path.join(WORKDIR, "09peak_macs2/{case}-vs-{control}-macs2_peaks.broadPeak"),
     output:
