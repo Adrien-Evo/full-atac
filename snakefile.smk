@@ -215,6 +215,9 @@ ALL_DOWNSAMPLE_INDEX = expand(os.path.join(WORKDIR, "04aln_downsample/{sample}-d
 ALL_FLAGSTAT = expand(os.path.join(WORKDIR, "03aln/{sample}.sorted.bam.flagstat"), sample = ALL_SAMPLES)
 ALL_PHANTOM = expand(os.path.join(WORKDIR, "05phantompeakqual/{sample}.spp.out"), sample = ALL_SAMPLES)
 ALL_BIGWIG = expand(os.path.join(WORKDIR, "07bigwig/{sample}.bw"), sample = ALL_SAMPLES)
+ALL_ENCODE = expand(os.path.join(WORKDIR, "DPQC/{sample}.encodeQC.txt"), sample = ALL_SAMPLES)
+#temp
+ALL_PICARD = expand(os.path.join(WORKDIR, "DPQC/{sample}.picard.txt"), sample = ALL_SAMPLES)
 
 # ~~~~~~~~~~~ Deeptools specific ~~~~~~~~~~ #
 # ---- Grouped by marks ---- #
@@ -244,7 +247,7 @@ if config["chromHMM"]:
 
 # ~~~~~~~~~~~~~~~~~~ Misc ~~~~~~~~~~~~~~~~~ #
 ALL_QC = [os.path.join(WORKDIR, "10multiQC/multiQC_log.html")]
-ALL_ENCODE = expand(os.path.join(WORKDIR, "DPQC/{sample}.encodeQC.txt"), sample = ALL_SAMPLES)
+
 ALL_CONFIG= [os.path.join(WORKDIR, "03aln/bams.json")]
 
 HUB_FOLDER = os.path.join(WORKDIR, "UCSC_HUB")
@@ -268,12 +271,13 @@ TARGETS.extend(ALL_PEAKS)
 TARGETS.extend(ALL_QC)
 TARGETS.extend(ALL_HUB)
 
-#Temp. Since output from bam input are not used as input, needs to be put in the rule all for execution
+# Since output from bam input are not used as input, needs to be put in the rule all for execution #
 if not BAM_INPUT:
     TARGETS.extend(ALL_CONFIG)
 
 #TEMP
 TARGETS.extend(ALL_DPQC_PLOT)
+
 
 # ~~~~~~~~~~~~~~~~ ChromHMM ~~~~~~~~~~~~~~~ #
 if config["chromHMM"]:
@@ -348,10 +352,10 @@ if BAM_INPUT == False:
         input:  os.path.join(WORKDIR, "01seq/{sample}.fastq")
         output: os.path.join(WORKDIR, "02fqc/{sample}_fastqc.zip"), os.path.join(WORKDIR, "02fqc/{sample}_fastqc.html")
         log:    os.path.join(WORKDIR, "00log/{sample}.fastqc")
+        params:
+            output_dir = os.path.join(WORKDIR, "02fqc")
         conda:
             "envs/full-atac-main-env.yml"
-        params :
-            output_dir = os.path.join(WORKDIR, "02fqc")
         shell:
             """
             fastqc -o {params.output_dir} -f fastq --noextract {input} 2> {log}
@@ -360,41 +364,30 @@ if BAM_INPUT == False:
     # Simple alignment with bowtie 2 followed by sorting #
     rule align:
         input:  os.path.join(WORKDIR, "01seq/{sample}.fastq")
-        output: os.path.join(WORKDIR, "03aln/{sample}.temp.bam"), os.path.join(WORKDIR, "00log/{sample}.align")
-        threads: CLUSTER["align"]["cpu"]
+        output: os.path.join(WORKDIR, "03aln/{sample}.temp.bam")
+        log:    os.path.join(WORKDIR, "00log/{sample}.align")
         conda:
             "envs/full-atac-main-env.yml"
-        params: 
-            bowtie = " --chunkmbs 320 -m 1 --best -p 5 ", 
-            jobname = "{sample}"
-        message: "aligning {input}: 16 threads"
-        log:
-            bowtie2 = os.path.join(WORKDIR, "00log/{sample}.align")
         shell:
             """
-            bowtie2 -p 4 -x {config[idx_bt1]} -q {input} 2> {log.bowtie2} \
-            | samtools view -Sb -F 4 - \
-            | samtools sort -m 8G -@ 4 -T {output[0]}.tmp -o {output[0]}
+            bowtie2 -p 8 -x {config[idx_bt1]} -q {input} 2> {log} \
+            | samblaster \
+            | samtools view -bu - \
+            | samtools sort -m 8G -@ 4 -T {output}.tmp -o {output}
             """
 
-    # Get the duplicates marked sorted bam, remove unmapped reads by samtools view -F 4 and duplicated reads by samblaster -r #
+    # Get the duplicates marked sorted bam, remove unmapped reads by samtools view -F 1804 #
     # Samblaster should run before samtools sort #
-    rule clean_alignment:
+    rule filter_alignment:
         input:  os.path.join(WORKDIR, "03aln/{sample}.temp.bam")
         output: os.path.join(WORKDIR, "03aln/{sample}.sorted.bam")
-        threads: CLUSTER["align"]["cpu"]
-        conda:
+        log:    os.path.join(WORKDIR, "00log/{sample}.filter")
+        conda:  
             "envs/full-atac-main-env.yml"
-        params:  
-            jobname = "{sample}"
-        log:
-            samblaster  = os.path.join(WORKDIR, "00log/{sample}.samblaster")
-        message: "aligning {input}: 16 threads"
         shell:
             """
-            samtools view -Sb -F 4 {input} \
-            | samblaster --removeDups {log.samblaster} \
-            | samtools sort -m 8G -@ 4 -T {output[0]}.tmp -o {output[0]}
+            samtools view -bu -F 1804 {input} -q 30 \
+            | samtools sort -m 8G -@ 4 -T {output}.tmp -o {output} 2> {log}
             """
     
     # This rule is not followed by other rules, so its output has to be added to the rule all conditionally on BAM_INPUT, if Bam are used as input or not #
@@ -444,8 +437,6 @@ rule index_bam:
     threads: 1
     conda:
         "envs/full-atac-main-env.yml"
-    params: jobname = "{sample}"
-    message: "index_bam {input}: {threads} threads"
     shell:
         """
         samtools index {input} 2> {log}
@@ -560,7 +551,7 @@ rule plotFingerPrint:
         bai = get_bam_index_per_sample
     output:
         plot = os.path.join(WORKDIR, "DPQC/{samp}.fingerprint.png"), 
-        rawCounts = os.path.join(WORKDIR, "DPQC/{samp}.plotFingerprintOutRawCounts.txt"), 
+        rawCounts = os.path.join(WORKDIR, "DPQC/{samp}.plotFingerprintOutRawCounts.txt"),
         qualityMetrics = os.path.join(WORKDIR, "DPQC/{samp}.plotFingerprintOutQualityMetrics.txt")
     conda:
         "envs/full-atac-main-env.yml"
