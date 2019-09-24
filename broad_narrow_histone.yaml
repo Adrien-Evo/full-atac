@@ -1,0 +1,18 @@
+#Those standard are from ENCODE https://www.encodeproject.org/chip-seq/histone/
+H3F3A: 'broad'
+H3K27me3: 'broad'
+H3K36me3: 'broad'
+H3K4me1: 'broad'
+H3K79me2: 'broad'
+H3K79me3: 'broad'
+H3K9me1: 'broad'
+H3K9me2: 'broad'
+H4K20me1: 'broad'
+H2AFZ: 'narrow'
+H3ac: 'narrow'
+H3K27ac: 'narrow'
+H3K4me2: 'narrow'
+H3K4me3: 'narrow'
+H3K9ac: 'narrow'
+H3K9me3: 'broad'
+
