@@ -189,8 +189,8 @@ for case in CASES:
     sample = "_".join(case.split("_")[0:-1])
     control = CONTROL_SAMPLE_DICT[sample]
     if control in CONTROLS:
-        ALL_PEAKS.append(os.path.join(WORKDIR, "08peak_macs1/{}-vs-{}-macs1_peaks.bed").format(case, control))
-        ALL_PEAKS.append(os.path.join(WORKDIR, "08peak_macs1/{}-vs-{}-macs1-nomodel_peaks.bed").format(case, control))
+        #ALL_PEAKS.append(os.path.join(WORKDIR, "08peak_macs1/{}-vs-{}-macs1_peaks.bed").format(case, control))
+        ALL_PEAKS.append(os.path.join(WORKDIR, "08peak_macs1/{}-vs-{}-macs1-narrow_peaks.bed").format(case, control))
         ALL_PEAKS.append(os.path.join(WORKDIR, "09peak_macs2/{}-vs-{}-macs2_peaks.xls").format(case, control))
         ALL_PEAKS.append(os.path.join(WORKDIR, "09peak_macs2/{}-vs-{}-macs2_peaks.broadPeak").format(case, control))
         ALL_inputSubtract_BIGWIG.append(os.path.join(WORKDIR, "06bigwig_inputSubtract/{}-subtract-{}.bw").format(case, control))
@@ -598,44 +598,39 @@ rule get_broad_peak_counts_for_multiqc:
 ###########################################################################
 
 # Peak calling using MACS
-rule call_peaks_macs1:
+rule call_narrow_peaks_macs1:
     input: 
         control = os.path.join(WORKDIR, "04aln_downsample/{control}-downsample.sorted.bam"), 
-        case = os.path.join(WORKDIR, "04aln_downsample/{case}-downsample.sorted.bam")
-    output: os.path.join(WORKDIR, "08peak_macs1/{case}-vs-{control}-macs1_peaks.bed"), os.path.join(WORKDIR, "08peak_macs1/{case}-vs-{control}-macs1-nomodel_peaks.bed")
+        case = os.path.join(WORKDIR, "04aln_downsample/{case}-downsample.sorted.bam"),
+        spp = os.path.join(WORKDIR, "05phantompeakqual/{case}.spp.out")
+    output:
+        os.path.join(WORKDIR, "08peak_macs1/{case}-vs-{control}-macs1-narrow_peaks.bed")
     log:
-        macs1 = os.path.join(WORKDIR, "00log/{case}-vs-{control}-call-peaks_macs1.log"), 
         macs1_nomodel = os.path.join(WORKDIR, "00log/{case}-vs-{control}-call-peaks-macs1-nomodel.log")
     params:
-        name1 = "{case}-vs-{control}-macs1", 
-        name2 = "{case}-vs-{control}-macs1-nomodel", 
+        name = "{case}-vs-{control}-macs1-narrow",
         jobname = "{case}", 
         outdir = os.path.join(WORKDIR, "08peak_macs1/")
     conda:
         "envs/macs.yml"
-    message: "call_peaks macs14 {input}: {threads} threads"
+    message: "Calling narrow peaks with macs14."
     shell:
         """
+        # nomodel with shiftsize half of the estimated fragment length from phantompeakqual.
         macs -t {input.case} \
             -c {input.control} --keep-dup all -f BAM -g {config[macs_g]} \
-            --outdir {params.outdir} -n {params.name1} --single-profile -p {config[macs_pvalue]} &> {log.macs1}
-
-        # nomodel for macs14, shift-size will be 100 bp (e.g. fragment length of 200bp)
-        # can get fragment length from the phantompeakqual. Now set it to 200 bp for all.
-        macs -t {input.case} \
-            -c {input.control} --keep-dup all -f BAM -g {config[macs_g]} \
-            --outdir {params.outdir} -n {params.name2} --nomodel -p {config[macs_pvalue]} &> {log.macs1_nomodel}
+            --outdir {params.outdir} -n {params.name} --shiftsize `cut -f3 {input.spp} | awk 'BEGIN{{FS=","}}{{printf "%.0f",($1+1)/2}}'` --nomodel -p {config[macs_pvalue]} &> {log.macs1_nomodel}
         """
         
 
 # Peak calling using MACS 2
 
-rule call_peaks_macs2:
+rule call_broad_peaks_macs2:
     input: 
         control = os.path.join(WORKDIR, "04aln_downsample/{control}-downsample.sorted.bam"), 
-        case = os.path.join(WORKDIR, "04aln_downsample/{case}-downsample.sorted.bam")
+        case = os.path.join(WORKDIR, "04aln_downsample/{case}-downsample.sorted.bam"),
+        spp = os.path.join(WORKDIR, "05phantompeakqual/{case}.spp.out")
     output:
-        bed = os.path.join(WORKDIR, "09peak_macs2/{case}-vs-{control}-macs2_peaks.xls"), 
         broad = os.path.join(WORKDIR, "09peak_macs2/{case}-vs-{control}-macs2_peaks.broadPeak")
     log: os.path.join(WORKDIR, "00log/{case}-vs-{control}-call-peaks_macs2.log")
     params:
@@ -644,13 +639,13 @@ rule call_peaks_macs2:
         outdir = os.path.join(WORKDIR, "09peak_macs2")
     conda:
         "envs/macs.yml"
-    message: "call_peaks macs2 {input}: {threads} threads"
+    message: "Calling broadpeaks with macs2."
     shell:
         """
         ## for macs2, when nomodel is set, --extsize is default to 200bp, this is the same as 2 * shift-size in macs14.
         macs2 callpeak -t {input.case} \
             -c {input.control} --keep-dup all -f BAM -g {config[macs2_g]} \
-            --outdir {params.outdir} -n {params.name} -p {config[macs2_pvalue]} --broad --broad-cutoff {config[macs2_pvalue_broad]} --nomodel &> {log}
+            --outdir {params.outdir} -n {params.name} --extsize `cut -f3 {input.spp} | awk 'BEGIN{{FS=","}}{{print $1}}'` -p {config[macs2_pvalue]} --broad --broad-cutoff {config[macs2_pvalue_broad]} --nomodel &> {log}
         """
 
 ###########################################################################
