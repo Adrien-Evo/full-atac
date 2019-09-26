@@ -1,6 +1,7 @@
 import csv
 import os
 import json
+import yaml
 import numpy as np
 
 #  Safe execution of scripts  #
@@ -19,6 +20,8 @@ TSS_BED = config['tss_bed']
 WORKDIR = os.path.abspath(config["OUTPUT_DIR"])
 PROJECT_NAME = config['PROJECT_NAME']
 BAM_INPUT = config['bam']
+NARROW_BROAD = yaml.load(open(config['narrow_broad']))
+
 
 ###########################################################################
 #################### Defining samples, cases, controls ####################
@@ -155,7 +158,7 @@ for key, value in CONTROL_SAMPLE_DICT.items():
 # ~~~~~~~~~~~~~~ Marks_name dicts ~~~~~~~~~~~~~~ #
 
 # Regroup samples per marks or TF
-# e.g. H3K27: [Mousekidney01, Mouseliver04], H3K27me3: [Mousekidney01, Mouseliver04]
+# e.g. H3K27: [Mousekidney01_H3K27, Mouseliver04_H3K27], H3K27me3: [Mousekidney01_H3K27me3, Mouseliver04_H3K27me3]
 MARKS_COMPLETE_NAME = dict()
 for sample in sorted(FILES.keys()):
     for mark in FILES[sample].keys():
@@ -168,6 +171,7 @@ MARKS_NO_CONTROL_COMPLETE_NAME = list(MARKS_COMPLETE_NAME.keys())
 # Adding the key for the merged input
 for key, value in CONTROL_SAMPLE_DICT.items():
     MARKS_COMPLETE_NAME.setdefault(value, []).append(key)
+
 
 ###########################################################################
 ########################### Listing OUTPUT FILES ##########################
@@ -191,7 +195,7 @@ for case in CASES:
     if control in CONTROLS:
         #ALL_PEAKS.append(os.path.join(WORKDIR, "08peak_macs1/{}-vs-{}-macs1_peaks.bed").format(case, control))
         ALL_PEAKS.append(os.path.join(WORKDIR, "08peak_macs1/{}-vs-{}-macs1-narrow_peaks.bed").format(case, control))
-        ALL_PEAKS.append(os.path.join(WORKDIR, "09peak_macs2/{}-vs-{}-macs2_peaks.xls").format(case, control))
+        #ALL_PEAKS.append(os.path.join(WORKDIR, "09peak_macs2/{}-vs-{}-macs2_peaks.xls").format(case, control))
         ALL_PEAKS.append(os.path.join(WORKDIR, "09peak_macs2/{}-vs-{}-macs2_peaks.broadPeak").format(case, control))
         ALL_inputSubtract_BIGWIG.append(os.path.join(WORKDIR, "06bigwig_inputSubtract/{}-subtract-{}.bw").format(case, control))
         ALL_BROADPEAK.append(os.path.join(WORKDIR, "12UCSC_broad/{}-vs-{}-macs2_peaks.broadPeak").format(case, control))
@@ -216,8 +220,7 @@ ALL_FLAGSTAT = expand(os.path.join(WORKDIR, "03aln/{sample}.sorted.bam.flagstat"
 ALL_PHANTOM = expand(os.path.join(WORKDIR, "05phantompeakqual/{sample}.spp.out"), sample = ALL_SAMPLES)
 ALL_BIGWIG = expand(os.path.join(WORKDIR, "07bigwig/{sample}.bw"), sample = ALL_SAMPLES)
 ALL_ENCODE = expand(os.path.join(WORKDIR, "DPQC/{sample}.encodeQC.txt"), sample = ALL_SAMPLES)
-#temp
-ALL_PICARD = expand(os.path.join(WORKDIR, "DPQC/{sample}.picard.txt"), sample = ALL_SAMPLES)
+
 
 # ~~~~~~~~~~~ Deeptools specific ~~~~~~~~~~ #
 # ---- Grouped by marks ---- #
@@ -326,6 +329,18 @@ def get_fastq(wildcards):
 def get_bams(wildcards):
     return ALL_SAMPLE_FILES[wildcards.sample]
 
+# ~~~~~~~ peak sets per marks or tf ~~~~~~~ #
+def get_peaks(wildcards):
+    for key, value in MARKS_COMPLETE_NAME.items():
+        if any(wildcards.case in sample_mark for sample_mark in MARKS_COMPLETE_NAME[key]):
+            if key in NARROW_BROAD:
+                if(NARROW_BROAD[key] == 'narrow'):
+                    return os.path.join(WORKDIR, "08peak_macs1/" + wildcards.case + "-vs-" + wildcards.control + "-macs1-narrow_peaks.bed")
+                elif(NARROW_BROAD[key] == 'broad'):
+                    return os.path.join(WORKDIR, "09peak_macs2/" + wildcards.case + "-vs-" + wildcards.control + "-macs2_peaks.broadPeak")
+            else:
+                print("Don't know how to handle mark " + wildcards.case + ". Will work with narrow peaks")
+                return os.path.join(WORKDIR, "08peak_macs1/" + wildcards.case + "-vs-" + wildcards.control + "-macs1-narrow_peaks.bed")
 
 #TODO see if this is usefull
 localrules: all
@@ -564,7 +579,7 @@ rule plotFingerPrint:
 
 rule get_FRiP_for_multiqc:
     input:
-        peaks = os.path.join(WORKDIR, "09peak_macs2/{case}-vs-{control}-macs2_peaks.broadPeak"),
+        peaks = get_peaks,
         bam = os.path.join(WORKDIR, "03aln/{case}.sorted.bam"), 
     output:
         os.path.join(WORKDIR, "DPQC/{case}-vs-{control}.FRiP.summary")
