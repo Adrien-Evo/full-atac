@@ -669,8 +669,11 @@ rule call_broad_peaks_macs2:
 
 rule make_inputSubtract_bigwigs:
     input : 
+        case =  os.path.join(WORKDIR, "04aln_downsample/{case}-downsample.sorted.bam"),
+        bai_case = os.path.join(WORKDIR, "04aln_downsample/{case}-downsample.sorted.bam.bai"),
         control = os.path.join(WORKDIR, "04aln_downsample/{control}-downsample.sorted.bam"), 
-        case =  os.path.join(WORKDIR, "04aln_downsample/{case}-downsample.sorted.bam")
+        bai_control = os.path.join(WORKDIR, "04aln_downsample/{control}-downsample.sorted.bam.bai"),
+        spp = os.path.join(WORKDIR, "05phantompeakqual/{case}.spp.out")
     output:  os.path.join(WORKDIR, "06bigwig_inputSubtract/{case}-subtract-{control}.bw")
     log: os.path.join(WORKDIR, "00log/{case}-vs-{control}inputSubtract.makebw")
     threads: 5
@@ -680,11 +683,16 @@ rule make_inputSubtract_bigwigs:
     message: "making input subtracted bigwig for {input}"
     shell:
         """
-        bamCompare --bamfile1 {input.case} --bamfile2 {input.control} --normalizeUsing RPKM  --operation log2 --operation first --scaleFactorsMethod None --binSize 30 --smoothLength 300 -p 5  --extendReads 200 -o {output} 2> {log}
+        bamCompare --bamfile1 {input.case} --bamfile2 {input.control} \
+        --normalizeUsing RPKM  --operation log2 --operation first --scaleFactorsMethod None --binSize 10 --smoothLength 30 --numberOfProcessors max/2 \
+        --extendReads `cut -f3 {input.spp} | awk 'BEGIN{{FS=","}}{{print $1}}'` -o {output} 2> {log}
         """
 
 rule make_bigwigs:
-    input : os.path.join(WORKDIR, "04aln_downsample/{sample}-downsample.sorted.bam"), os.path.join(WORKDIR, "04aln_downsample/{sample}-downsample.sorted.bam.bai")
+    input : 
+        bam = os.path.join(WORKDIR, "04aln_downsample/{sample}-downsample.sorted.bam"),
+        bai = os.path.join(WORKDIR, "04aln_downsample/{sample}-downsample.sorted.bam.bai"),
+        spp = os.path.join(WORKDIR, "05phantompeakqual/{sample}.spp.out")
     output: os.path.join(WORKDIR, "07bigwig/{sample}.bw")
     log: os.path.join(WORKDIR, "00log/{sample}.makebw")
     threads: 5
@@ -694,7 +702,8 @@ rule make_bigwigs:
     message: "making bigwig for {input}"
     shell:
         """
-        bamCoverage -b {input[0]} --normalizeUsing RPKM --binSize 30 --smoothLength 300 -p 5 --extendReads 200 -o {output} 2> {log}
+        bamCoverage -b {input.bam} --normalizeUsing RPKM --binSize 10 --smoothLength 30 -p 5 --numberOfProcessors max/2 \
+        --extendReads `cut -f3 {input.spp} | awk 'BEGIN{{FS=","}}{{print $1}}'` -o {output} 2> {log}
         """
 
 rule get_UCSC_bigwig:
