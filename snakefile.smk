@@ -182,7 +182,7 @@ for key, value in CONTROL_SAMPLE_DICT.items():
 
 # ~~~~~~ files with case and control ~~~~~~ #
 ALL_PEAKS = []
-ALL_inputSubtract_BIGWIG = []
+ALL_BIGWIG_INPUT = []
 ALL_BROADPEAK = []
 ALL_BIGWIGUCSC = []
 ALL_FEATURECOUNTS = []
@@ -197,9 +197,9 @@ for case in CASES:
         ALL_PEAKS.append(os.path.join(WORKDIR, "08peak_macs1/{}-vs-{}-macs1-narrow_peaks.bed").format(case, control))
         #ALL_PEAKS.append(os.path.join(WORKDIR, "09peak_macs2/{}-vs-{}-macs2_peaks.xls").format(case, control))
         ALL_PEAKS.append(os.path.join(WORKDIR, "09peak_macs2/{}-vs-{}-macs2_peaks.broadPeak").format(case, control))
-        ALL_inputSubtract_BIGWIG.append(os.path.join(WORKDIR, "06bigwig_inputSubtract/{}-subtract-{}.bw").format(case, control))
+        ALL_BIGWIG_INPUT.append(os.path.join(WORKDIR, "06bigwig_input/{}-vs-{}.bw").format(case, control))
         ALL_BROADPEAK.append(os.path.join(WORKDIR, "12UCSC_broad/{}-vs-{}-macs2_peaks.broadPeak").format(case, control))
-        ALL_BIGWIGUCSC.append(os.path.join(WORKDIR, "UCSC_compatible_bigWig/{}-subtract-{}.bw").format(case, control))
+        ALL_BIGWIGUCSC.append(os.path.join(WORKDIR, "UCSC_compatible_bigWig/{}-vs-{}.bw").format(case, control))
         ALL_FEATURECOUNTS.append(os.path.join(WORKDIR, "DPQC/{}-vs-{}.FRiP.summary").format(case,control))
         ALL_BROADPEAKCOUNTS.append(os.path.join(WORKDIR, "DPQC/{}-vs-{}-broadpeak-count_mqc.json").format(case,control))
 
@@ -667,20 +667,20 @@ rule call_broad_peaks_macs2:
 ####### VISUALIZATION bigWig and bigBed generation and HUB creation #######
 ###########################################################################
 
-rule make_inputSubtract_bigwigs:
+rule make_bigwigs_using_inputs:
     input : 
         case =  os.path.join(WORKDIR, "04aln_downsample/{case}-downsample.sorted.bam"),
         bai_case = os.path.join(WORKDIR, "04aln_downsample/{case}-downsample.sorted.bam.bai"),
         control = os.path.join(WORKDIR, "04aln_downsample/{control}-downsample.sorted.bam"), 
         bai_control = os.path.join(WORKDIR, "04aln_downsample/{control}-downsample.sorted.bam.bai"),
         spp = os.path.join(WORKDIR, "05phantompeakqual/{case}.spp.out")
-    output:  os.path.join(WORKDIR, "06bigwig_inputSubtract/{case}-subtract-{control}.bw")
-    log: os.path.join(WORKDIR, "00log/{case}-vs-{control}inputSubtract.makebw")
+    output:  os.path.join(WORKDIR, "06bigwig_input/{case}-vs-{control}.bw")
+    log: os.path.join(WORKDIR, "00log/{case}-vs-{control}.makebw")
     threads: 5
     conda:
         "envs/full-atac-main-env.yml"
     params: jobname = "{case}"
-    message: "making input subtracted bigwig for {input}"
+    message: "Making bigwig of {case} log2 fold change versus {control}"
     shell:
         """
         bamCompare --bamfile1 {input.case} --bamfile2 {input.control} \
@@ -699,7 +699,7 @@ rule make_bigwigs:
     conda:
         "envs/full-atac-main-env.yml"
     params: jobname = "{sample}"
-    message: "making bigwig for {input}"
+    message: "Making bigwig of {sample}"
     shell:
         """
         bamCoverage -b {input.bam} --normalizeUsing RPKM --binSize 10 --smoothLength 30 -p 5 --numberOfProcessors max/2 \
@@ -707,11 +707,11 @@ rule make_bigwigs:
         """
 
 rule get_UCSC_bigwig:
-    input : os.path.join(WORKDIR, "06bigwig_inputSubtract/{case}-subtract-{control}.bw")
-    output : os.path.join(WORKDIR, "UCSC_compatible_bigWig/{case}-subtract-{control}.bw")
+    input : os.path.join(WORKDIR, "06bigwig_input/{case}-vs-{control}.bw")
+    output : os.path.join(WORKDIR, "UCSC_compatible_bigWig/{case}-vs-{control}.bw")
     params : 
-        wig1 = os.path.join(WORKDIR, "06bigwig_inputSubtract/{case}-subtract-{control}.temp.wig"), 
-        wig2 = os.path.join(WORKDIR, "06bigwig_inputSubtract/{case}-subtract-{control}.temp2.wig")
+        wig1 = os.path.join(WORKDIR, "06bigwig_input/{case}-vs-{control}.temp.wig"), 
+        wig2 = os.path.join(WORKDIR, "06bigwig_input/{case}-vs-{control}.temp2.wig")
     shell:
         """
         scripts/bigWigToWig {input} {params.wig1}
