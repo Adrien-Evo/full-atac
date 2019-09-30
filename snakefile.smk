@@ -14,7 +14,6 @@ shell.prefix("set -eo pipefail; echo BEGIN at $(date); ")
 configfile: "config_bam.yaml"
 
 # Loading config file items
-CLUSTER = json.load(open(config['CLUSTER_JSON']))
 FILES = json.load(open(config['SAMPLES_JSON']))
 TSS_BED = config['tss_bed']
 WORKDIR = os.path.abspath(config["OUTPUT_DIR"])
