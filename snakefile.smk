@@ -187,6 +187,8 @@ ALL_BROADPEAK = []
 ALL_BIGWIGUCSC = []
 ALL_FEATURECOUNTS = []
 ALL_BROADPEAKCOUNTS = []
+ALL_NARROWPEAKCOUNTS = []
+
 
 # going through all cases samples (sample_mark) #
 for case in CASES:
@@ -202,6 +204,7 @@ for case in CASES:
         ALL_BIGWIGUCSC.append(os.path.join(WORKDIR, "UCSC_compatible_bigWig/{}-vs-{}.bw").format(case, control))
         ALL_FEATURECOUNTS.append(os.path.join(WORKDIR, "DPQC/{}-vs-{}.FRiP.summary").format(case,control))
         ALL_BROADPEAKCOUNTS.append(os.path.join(WORKDIR, "DPQC/{}-vs-{}-broadpeak-count_mqc.json").format(case,control))
+        ALL_NARROWPEAKCOUNTS.append(os.path.join(WORKDIR, "DPQC/{}-vs-{}-narrowpeak-count_mqc.json").format(case,control))
 
 # ~~~~~~~~~~~~~~~ Bam files ~~~~~~~~~~~~~~~ #
 CONTROL_BAM = expand(os.path.join(WORKDIR, "03aln/{sample}.sorted.bam"), sample = CONTROL_MERGED_FILES)
@@ -249,7 +252,7 @@ if config["chromHMM"]:
     CHROMHMM_TABLE = [os.path.join(WORKDIR, "chromHMM/cellmarkfiletable.txt")]
 
 # ~~~~~~~~~~~~~~~~~~ Misc ~~~~~~~~~~~~~~~~~ #
-ALL_QC = [os.path.join(WORKDIR, "10multiQC/multiQC_log.html")]
+ALL_MULTIQC = [os.path.join(WORKDIR, "10multiQC/multiqc_report.html")]
 
 ALL_CONFIG= [os.path.join(WORKDIR, "03aln/bams.json")]
 
@@ -262,16 +265,16 @@ ALL_HUB = [os.path.join(HUB_FOLDER,"{}.hub.txt").format(PROJECT_NAME)]
 
 # Depends on bam or fastq as input #
 if not BAM_INPUT:
-    ALL_MULTIQC_INPUT = ALL_PHANTOM + ALL_DPQC + ALL_FEATURECOUNTS + ALL_BROADPEAKCOUNTS + ALL_ENCODE + ALL_FASTQC + ALL_BOWTIE_LOG 
+    ALL_MULTIQC_INPUT = ALL_PHANTOM + ALL_DPQC + ALL_FEATURECOUNTS + ALL_BROADPEAKCOUNTS + ALL_NARROWPEAKCOUNTS + ALL_ENCODE + ALL_FASTQC + ALL_BOWTIE_LOG 
 else:
-    ALL_MULTIQC_INPUT = ALL_PHANTOM + ALL_DPQC + ALL_FEATURECOUNTS + ALL_ENCODE + ALL_BROADPEAKCOUNTS
+    ALL_MULTIQC_INPUT = ALL_PHANTOM + ALL_DPQC + ALL_FEATURECOUNTS + ALL_ENCODE + ALL_BROADPEAKCOUNTS + ALL_NARROWPEAKCOUNTS
 
 ###########################################################################
 ########################### Targets for rule all ##########################
 ###########################################################################
 TARGETS = []
 TARGETS.extend(ALL_PEAKS)
-TARGETS.extend(ALL_QC)
+TARGETS.extend(ALL_MULTIQC)
 TARGETS.extend(ALL_HUB)
 
 # Since output from bam input are not used as input, needs to be put in the rule all for execution #
@@ -607,6 +610,20 @@ rule get_broad_peak_counts_for_multiqc:
         python3 scripts/count_peaks.py --peak_type {params.peakType} --peaks {input.peaks} --sample_name {wildcards.case} > {output}
         """
 
+rule get_narrow_peak_counts_for_multiqc:
+    input:
+        peaks = os.path.join(WORKDIR, "08peak_macs1/{case}-vs-{control}-macs1-narrow_peaks.bed"),
+    output:
+        os.path.join(WORKDIR, "DPQC/{case}-vs-{control}-narrowpeak-count_mqc.json")
+    params:
+        peakType = "narrowPeak"
+    conda:
+        "envs/full-atac-main-env.yml"
+    shell:
+        """
+        python3 scripts/count_peaks.py --peak_type {params.peakType} --peaks {input.peaks} --sample_name {wildcards.case} > {output}
+        """
+
 
 ###########################################################################
 ############################### PEAK CALLING ##############################
@@ -754,10 +771,24 @@ rule get_UCSC_hub:
 ################################# MULTIQC #################################
 ###########################################################################
 
-# MultiQC: Takes fastqc, phantompeakqualtools, deeptools, bowtie and feature counts
+
+# MultiQC: Moving the config file in the multiqc dir + adding some custom info in the header
+rule multiQC_config:
+    input : "multiqc_config.yaml"
+    output: os.path.join(WORKDIR, "10multiQC/multiqc_config.yaml")
+    message: "Moving multiqc config"
+    shell:
+        """
+        sed "s/DATE/$(date)/g" {input} | sed "s/PROJECTNAME/{PROJECT_NAME}/g"  > {output}
+        """
+
+
+# MultiQC: Takes fastqc, phantompeakqualtools, deeptools, bowtie, fastQC and feature counts for FRiP and custom MACS2 peak counts
 rule multiQC:
-    input : ALL_MULTIQC_INPUT
-    output: ALL_QC
+    input : 
+        multiqc_files = ALL_MULTIQC_INPUT,
+        multiqc_config = os.path.join(WORKDIR, "10multiQC/multiqc_config.yaml")
+    output: ALL_MULTIQC
     params: os.path.join(WORKDIR, "10multiQC/")
     conda:
         "envs/full-atac-main-env.yml"
@@ -765,12 +796,14 @@ rule multiQC:
     message: "multiqc for all logs"
     shell:
         """
-        multiqc {input} -o {params} -f -v -n multiQC_log 2> {log}
+        multiqc {input.multiqc_files} -o {params} --config {input.multiqc_config} -v -f 2> {log}
         """
 
-# ChromHMM section.
-# This allow for all necessary steps for ChromHMM execution with the number of states declared in the config file 
+###########################################################################
+################################# ChromHMM ################################
+###########################################################################
 
+# This allow for all necessary steps for ChromHMM execution with the number of states declared in the config file 
 if config["chromHMM"]:
 
     rule bam2bed:

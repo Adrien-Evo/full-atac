@@ -6,5 +6,7 @@ This pipeline should be easy to install with snakemake and conda present on the 
 
 
 #TODO
-Work on the specificites of each histone marks : Downsmalping requicrement from ENCODE
-WOrk on the specific of peak calling. Narrow or broad for different kinds of histones. Conditional input is tough though
+Create a input meta file that is processed into a json. Can also integrate the narrow mars into the json too
+Load UCSC HUB to check for it
+Verify that all files are commited and excluded
+Check for macs peak calling about the discovery of peaks with different p-value

@@ -24,15 +24,17 @@ for sample_name in args.sample_name:
 # Get the MultiQC output 
 
 multiqc_output = {
-    "id": "MACS2 " + args.peak_type + " peak count" ,
+    "id": "MACS2_" + args.peak_type + "_count" ,
     "section_anchor": "MACS2 peak",
-    "section_name": "MACS2 " + args.peak_type,
+    "section_name": "MACS2 " + args.peak_type + " counts",
     "description": "",
     "plot_type": "bargraph",
     "pconfig": {
         "id": "MACS2 " + args.peak_type,
         "title": "MACS2 " + args.peak_type + " peak count",
-        "ylab": "# Peaks"
+        "ylab": "# Peaks",
+        "cpswitch": False,                       # Show the 'Counts / Percentages' switch?
+        "cpswitch_c_active": True
     },
     "data": sample_count
 }

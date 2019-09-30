@@ -1,13 +1,20 @@
-title: "MultiQC ChIP-seq report"
-subtitle: "Generated from the full-chipseq pipeline"
-intro_text: "MultiQC reports summarise analysis results."
-report_comment: "This is a comment about this report."
+title: "Full-chipseq MultiQC report"
+report_comment: "Generated on DATE for project PROJECTNAME"
 
 
 report_header_info:
     - Contact E-mail: 'adrien.foucal@gmail.com'
     - Pipeline Type: 'ChIP-seq'
 
+module_order:
+    - MACS2_broadPeak_count
+    - MACS2_narrowPeak_count
+    - featureCounts:
+        name: 'FRiP'
+        info: 'Fraction of reads in peaks (FRiP)'
+    - deepTools
+    - bowtie2
+    - fastqc
 
 
 custom_data:
