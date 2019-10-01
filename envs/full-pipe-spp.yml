@@ -1,4 +1,4 @@
-name: spp
+name: full-pipe-spp
 channels:
   - hcc
   - bioconda

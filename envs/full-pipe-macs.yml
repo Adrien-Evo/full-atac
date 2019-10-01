@@ -1,4 +1,4 @@
-name: macs
+name: full-pipe-macs
 channels:
   - auto
   - bioconda

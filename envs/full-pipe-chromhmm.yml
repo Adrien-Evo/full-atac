@@ -1,4 +1,4 @@
-name: chromhmm
+name: full-pipe-chromhmm
 channels:
   - bioconda
   - conda-forge
