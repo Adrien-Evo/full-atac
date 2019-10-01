@@ -547,7 +547,7 @@ rule computeMatrix_QC:
     params : TSS_BED
     shell:
         """
-        computeMatrix reference-point -S {input} -R {TSS_BED} -a 3000 -b 3000 -out {output}
+        computeMatrix reference-point -S {input} -R {TSS_BED} -a 3000 -b 3000 -out {output} --numberOfProcessors max/2
         """
 
 # Deeptools QC
@@ -595,6 +595,7 @@ rule get_FRiP_for_multiqc:
         awk 'BEGIN{{OFS="\t";print "GeneID", "Chr","Start","End","Strand"}}{{print $4,$1,$2,$3,$6}}' {input.peaks} > {params.saf}
         featureCounts -a {params.saf} -F SAF -o {params.outputName} {input.bam}
         """
+
 rule get_broad_peak_counts_for_multiqc:
     input:
         peaks = os.path.join(WORKDIR, "09peak_macs2/{case}-vs-{control}-macs2_peaks.broadPeak"),
