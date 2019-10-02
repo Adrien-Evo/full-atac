@@ -182,7 +182,7 @@ for key, value in CONTROL_SAMPLE_DICT.items():
 ALL_PEAKS = []
 ALL_BIGWIG_INPUT = []
 ALL_BROADPEAK = []
-ALL_BIGWIGUCSC = []
+#ALL_BIGWIGUCSC = []
 ALL_FEATURECOUNTS = []
 ALL_BROADPEAKCOUNTS = []
 ALL_NARROWPEAKCOUNTS = []
@@ -199,7 +199,7 @@ for case in CASES:
         ALL_PEAKS.append(os.path.join(WORKDIR, "09peak_macs2/{}-vs-{}-macs2_peaks.broadPeak").format(case, control))
         ALL_BIGWIG_INPUT.append(os.path.join(WORKDIR, "06bigwig_input/{}-vs-{}.bw").format(case, control))
         ALL_BROADPEAK.append(os.path.join(WORKDIR, "12UCSC_broad/{}-vs-{}-macs2_peaks.broadPeak").format(case, control))
-        ALL_BIGWIGUCSC.append(os.path.join(WORKDIR, "UCSC_compatible_bigWig/{}-vs-{}.bw").format(case, control))
+        #ALL_BIGWIGUCSC.append(os.path.join(WORKDIR, "UCSC_compatible_bigWig/{}-vs-{}.bw").format(case, control))
         ALL_FEATURECOUNTS.append(os.path.join(WORKDIR, "DPQC/{}-vs-{}.FRiP.summary").format(case,control))
         ALL_BROADPEAKCOUNTS.append(os.path.join(WORKDIR, "DPQC/{}-vs-{}-broadpeak-count_mqc.json").format(case,control))
         ALL_NARROWPEAKCOUNTS.append(os.path.join(WORKDIR, "DPQC/{}-vs-{}-narrowpeak-count_mqc.json").format(case,control))
@@ -734,7 +734,7 @@ rule get_UCSC_bigBed:
 rule get_UCSC_hub:
     input:  
         bed = ALL_BROADPEAK, 
-        bigwig = ALL_BIGWIGUCSC
+        bigwig = ALL_BIGWIG_INPUT
     output:
         ALL_HUB
     params:
