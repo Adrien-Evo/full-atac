@@ -11,8 +11,6 @@ shell.prefix("set -eo pipefail; echo BEGIN at $(date); ")
 # ================== Config file loading ================= #
 # ======================================================== #
 
-configfile: "config_bam.yaml"
-
 # Loading config file items
 FILES = json.load(open(config['SAMPLES_JSON']))
 TSS_BED = config['tss_bed']
@@ -371,10 +369,9 @@ if BAM_INPUT == False:
         log:    os.path.join(WORKDIR, "00log/{sample}.fastqc")
         params:
             output_dir = os.path.join(WORKDIR, "02fqc")
-        conda:
-            "envs/full-atac-main-env.yml"
         shell:
             """
+            source activate full-pipe-main-env
             fastqc -o {params.output_dir} -f fastq --noextract {input} 2> {log}
             """
 
@@ -383,10 +380,9 @@ if BAM_INPUT == False:
         input:  os.path.join(WORKDIR, "01seq/{sample}.fastq")
         output: os.path.join(WORKDIR, "03aln/{sample}.temp.bam")
         log:    os.path.join(WORKDIR, "00log/{sample}.align")
-        conda:
-            "envs/full-atac-main-env.yml"
         shell:
             """
+            source activate full-pipe-main-env
             bowtie2 -p 8 -x {config[idx_bt1]} -q {input} 2> {log} \
             | samblaster \
             | samtools view -bu - \
@@ -399,10 +395,9 @@ if BAM_INPUT == False:
         input:  os.path.join(WORKDIR, "03aln/{sample}.temp.bam")
         output: os.path.join(WORKDIR, "03aln/{sample}.sorted.bam")
         log:    os.path.join(WORKDIR, "00log/{sample}.filter")
-        conda:  
-            "envs/full-atac-main-env.yml"
         shell:
             """
+            source activate full-pipe-main-env
             samtools view -bu -F 1804 {input} -q 30 \
             | samtools sort -m 8G -@ 4 -T {output}.tmp -o {output} 2> {log}
             """
@@ -452,10 +447,9 @@ rule index_bam:
     output: os.path.join(WORKDIR, "03aln/{sample}.sorted.bam.bai")
     log:    os.path.join(WORKDIR, "00log/{sample}.bam.index")
     threads: 1
-    conda:
-        "envs/full-atac-main-env.yml"
     shell:
         """
+        source activate full-pipe-main-env
         samtools index {input} 2> {log}
         """
 
@@ -470,12 +464,11 @@ rule flagstat_bam:
     output: os.path.join(WORKDIR, "03aln/{sample}.sorted.bam.flagstat")
     log:    os.path.join(WORKDIR, "00log/{sample}.bam.flagstat")
     threads: 1
-    conda:
-        "envs/full-atac-main-env.yml"
     params: jobname = "{sample}"
     message: "flagstat_bam {input}: {threads} threads"
     shell:
         """
+        source activate full-pipe-main-env
         samtools flagstat {input} > {output} 2> {log}
         """
 
@@ -490,13 +483,12 @@ rule down_sample:
         bai = os.path.join(WORKDIR, "04aln_downsample/{sample}-downsample.sorted.bam.bai")
     log: os.path.join(WORKDIR, "00log/{sample}.downsample.log")
     threads: 5
-    conda:
-        "envs/full-atac-main-env.yml"
     params: 
     log: os.path.join(WORKDIR, "00log/{sample}.phantompeakqual.log")
     message: "downsampling for {input}"
     shell:
         """
+        source activate full-pipe-main-env
         sambamba view -f bam -t 5 --subsampling-seed=3 -s `sed '5q;d' {input.flagstat} | cut -d" " -f1 | awk '{{ratio = {config[target_reads]}/$0}};{{if(ratio < 1 )print ratio; else print 1}}'` {input.bam} | samtools sort -m 2G -@ 5 -T {output.bam}.tmp > {output.bam} 2> {log}
         samtools index {output.bam}
         """
@@ -512,10 +504,9 @@ rule encode_complexity:
     output: 
         os.path.join(WORKDIR, "DPQC/{sample}.encodeQC.txt")
     threads: 4
-    conda:
-        "envs/full-atac-main-env.yml"
     shell:
         """
+        source activate full-pipe-main-env
         bedtools bamtobed -i {input} | awk 'BEGIN{{OFS="\t"}}{{print $1,$2,$3,$6}}' | grep -v 'chrM' | sort | uniq -c \
         | awk 'BEGIN{{mt=0;m0=0;m1=0;m2=0;OFS="\t"}} ($1==1){{m1=m1+1}} ($1==2){{m2=m2+1}} {{m0=m0+1}} {{mt=mt+$1}} \
         END{{m1_m2=-1.0; if(m2>0) m1_m2=m1/m2; print "Sample Name","NRF","PBC1","PBC2"; print "{wildcards.sample}",m0/mt,m1/m0,m1_m2}}' > {output}
@@ -529,12 +520,11 @@ rule phantom_peak_qual:
     output: os.path.join(WORKDIR, "05phantompeakqual/{sample}.spp.out")
     log: os.path.join(WORKDIR, "00log/{sample}.phantompeakqual.log")
     threads: 4
-    conda:
-        "envs/spp.yml"
     params: os.path.join(WORKDIR, "05phantompeakqual/")
     message: "phantompeakqual for {input}"
     shell:
         """
+        source activate full-pipe-spp
         run_spp -c={input.bam} -savp -rf -p=4 -odir={params}  -out={output} -tmpdir={params} 2> {log}
         """
 
@@ -542,22 +532,20 @@ rule phantom_peak_qual:
 rule computeMatrix_QC:
     input : get_big_wig_with_mark_or_tf 
     output : os.path.join(WORKDIR, "DPQC/{mark}.computeMatrix.gz")
-    conda:
-        "envs/full-atac-main-env.yml"
     params : TSS_BED
     shell:
         """
-        computeMatrix reference-point -S {input} -R {TSS_BED} -a 3000 -b 3000 -out {output} --numberOfProcessors max/2
+        source activate full-pipe-main-env
+	computeMatrix reference-point -S {input} -R {TSS_BED} -a 3000 -b 3000 -out {output} --numberOfProcessors max/2
         """
 
 # Deeptools QC
 rule plotHeatmap:
     input :  os.path.join(WORKDIR, "DPQC/{mark}.computeMatrix.gz")
     output : os.path.join(WORKDIR, "DPQC/{mark}.plotHeatmap.png")
-    conda:
-        "envs/full-atac-main-env.yml"
     shell:
         """
+        source activate full-pipe-main-env
         plotHeatmap -m {input} -out {output} --colorMap jet
         """
 
@@ -570,12 +558,11 @@ rule plotFingerPrint:
         plot = os.path.join(WORKDIR, "DPQC/{samp}.fingerprint.png"), 
         rawCounts = os.path.join(WORKDIR, "DPQC/{samp}.plotFingerprintOutRawCounts.txt"),
         qualityMetrics = os.path.join(WORKDIR, "DPQC/{samp}.plotFingerprintOutQualityMetrics.txt")
-    conda:
-        "envs/full-atac-main-env.yml"
     params: 
         labels = get_all_marks_per_sample
     shell:
         """
+        source activate full-pipe-main-env
         plotFingerprint -b {input.bam} --plotFile {output.plot} --labels {params.labels} --region chr1 --skipZeros --numberOfSamples 100000 --minMappingQuality 30 --plotTitle {wildcards.samp} --outRawCounts {output.rawCounts} --outQualityMetrics {output.qualityMetrics}
         """
 
@@ -588,10 +575,9 @@ rule get_FRiP_for_multiqc:
     params:
         saf = os.path.join(WORKDIR, "DPQC/{case}.saf"),
         outputName = os.path.join(WORKDIR, "DPQC/{case}-vs-{control}.FRiP")
-    conda:
-        "envs/full-atac-main-env.yml"
     shell:
         """
+        source activate full-pipe-main-env
         awk 'BEGIN{{OFS="\t";print "GeneID", "Chr","Start","End","Strand"}}{{print $4,$1,$2,$3,$6}}' {input.peaks} > {params.saf}
         featureCounts -a {params.saf} -F SAF -o {params.outputName} {input.bam}
         """
@@ -603,10 +589,9 @@ rule get_broad_peak_counts_for_multiqc:
         os.path.join(WORKDIR, "DPQC/{case}-vs-{control}-broadpeak-count_mqc.json")
     params:
         peakType = "broadPeak"
-    conda:
-        "envs/full-atac-main-env.yml"
     shell:
         """
+        source activate full-pipe-main-env
         python3 scripts/count_peaks.py --peak_type {params.peakType} --peaks {input.peaks} --sample_name {wildcards.case} > {output}
         """
 
@@ -617,10 +602,9 @@ rule get_narrow_peak_counts_for_multiqc:
         os.path.join(WORKDIR, "DPQC/{case}-vs-{control}-narrowpeak-count_mqc.json")
     params:
         peakType = "narrowPeak"
-    conda:
-        "envs/full-atac-main-env.yml"
     shell:
         """
+        source activate full-pipe-main-env
         python3 scripts/count_peaks.py --peak_type {params.peakType} --peaks {input.peaks} --sample_name {wildcards.case} > {output}
         """
 
@@ -643,11 +627,10 @@ rule call_narrow_peaks_macs1:
         name = "{case}-vs-{control}-macs1-narrow",
         jobname = "{case}", 
         outdir = os.path.join(WORKDIR, "08peak_macs1/")
-    conda:
-        "envs/macs.yml"
     message: "Calling narrow peaks with macs14."
     shell:
         """
+        source activate full-pipe-macs
         # nomodel with shiftsize half of the estimated fragment length from phantompeakqual.
         macs -t {input.case} \
             -c {input.control} --keep-dup all -f BAM -g {config[macs_g]} \
@@ -669,11 +652,10 @@ rule call_broad_peaks_macs2:
         name = "{case}-vs-{control}-macs2", 
         jobname = "{case}", 
         outdir = os.path.join(WORKDIR, "09peak_macs2")
-    conda:
-        "envs/macs.yml"
     message: "Calling broadpeaks with macs2."
     shell:
         """
+        source activate full-pipe-macs
         ## for macs2, when nomodel is set, --extsize is default to 200bp, this is the same as 2 * shift-size in macs14.
         macs2 callpeak -t {input.case} \
             -c {input.control} --keep-dup all -f BAM -g {config[macs2_g]} \
@@ -694,12 +676,11 @@ rule make_bigwigs_using_inputs:
     output:  os.path.join(WORKDIR, "06bigwig_input/{case}-vs-{control}.bw")
     log: os.path.join(WORKDIR, "00log/{case}-vs-{control}.makebw")
     threads: 5
-    conda:
-        "envs/full-atac-main-env.yml"
     params: jobname = "{case}"
     message: "Making bigwig of {case} log2 fold change versus {control}"
     shell:
         """
+        source activate full-pipe-main-env
         bamCompare --bamfile1 {input.case} --bamfile2 {input.control} \
         --normalizeUsing RPKM  --operation log2 --operation first --scaleFactorsMethod None --binSize 10 --smoothLength 30 --numberOfProcessors max/2 \
         --extendReads `cut -f3 {input.spp} | awk 'BEGIN{{FS=","}}{{print $1}}'` -o {output} 2> {log}
@@ -713,12 +694,11 @@ rule make_bigwigs:
     output: os.path.join(WORKDIR, "07bigwig/{sample}.bw")
     log: os.path.join(WORKDIR, "00log/{sample}.makebw")
     threads: 5
-    conda:
-        "envs/full-atac-main-env.yml"
     params: jobname = "{sample}"
     message: "Making bigwig of {sample}"
     shell:
         """
+        source activate full-pipe-main-env
         bamCoverage -b {input.bam} --normalizeUsing RPKM --binSize 10 --smoothLength 30 -p 5 --numberOfProcessors max/2 \
         --extendReads `cut -f3 {input.spp} | awk 'BEGIN{{FS=","}}{{print $1}}'` -o {output} 2> {log}
         """
@@ -760,10 +740,9 @@ rule get_UCSC_hub:
         output_dir = HUB_FOLDER, 
         sample_name = list(SAMPLES.keys()), 
         categories = MARKS_NO_CONTROL
-    conda:
-        "envs/full-atac-main-env.yml"
     shell:
         """
+        source activate full-pipe-main-env
         python3 scripts/makeUCSCtrackHub.py --hub_name {PROJECT_NAME} --sample_name {params.sample_name} --categories {params.categories} --output_dir {params.output_dir} --peaks {input.bed} --bw {input.bigwig} 2> makehub.err
         """
 
@@ -790,12 +769,11 @@ rule multiQC:
         multiqc_config = os.path.join(WORKDIR, "10multiQC/multiqc_config.yaml")
     output: ALL_MULTIQC
     params: os.path.join(WORKDIR, "10multiQC/")
-    conda:
-        "envs/full-atac-main-env.yml"
     log: os.path.join(WORKDIR, "00log/multiqc.log")
     message: "multiqc for all logs"
     shell:
         """
+        source activate full-pipe-main-env
         multiqc {input.multiqc_files} -o {params} --config {input.multiqc_config} -v -f 2> {log}
         """
 
@@ -814,10 +792,9 @@ if config["chromHMM"]:
         params: jobname = "{sample}"
         log: os.path.join(WORKDIR, "00log/{sample}-bam2bed.log")
         message: "converting bam to bed for {input}"
-        conda:
-            "envs/chromhmm.yml"
         shell:
             """
+            source activate full-pipe-chromhmm
             bedtools bamtobed -i {input} > {output}
             """
 
@@ -852,10 +829,9 @@ if config["chromHMM"]:
             folder = os.path.join(WORKDIR, "chromHMM/binarizedData/"), 
             bamtobed_folder = os.path.join(WORKDIR, "bamtobed/"), 
             memory = "32G"
-        conda:
-            "envs/chromhmm.yml"
         shell:
             """
+            source activate full-pipe-chromhmm
             ChromHMM.sh -Xmx{params.memory} BinarizeBed -b {config[binsize]} {config[chromHmm_g]} {params.bamtobed_folder} {input.cellmarkfiletable} {params.folder} 2> {log}
             """
 
@@ -869,9 +845,8 @@ if config["chromHMM"]:
             input_folder = os.path.join(WORKDIR, "chromHMM/binarizedData/"), 
             output_folder = expand(os.path.join(WORKDIR, "chromHMM/learn_{nb_state}_states/"), nb_state = config["state"]), 
             memory = "32G"
-        conda:
-            "envs/chromhmm.yml"
         shell:
             """
+            source activate full-pipe-chromhmm
             unset DISPLAY && ChromHMM.sh -Xmx{params.memory} LearnModel -p 0 -b {config[binsize]} {params.input_folder} {params.output_folder} {config[state]} {config[chromHmm_g]} 2> {log}
             """
