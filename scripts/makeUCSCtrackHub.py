@@ -199,7 +199,8 @@ if args.categories is not None :
     if len(args.categories) > 1 :
         supertrack = trackhub.SuperTrack(
         name = 'AggregatedCategories',
-        short_label = 'Aggregated_Marks_or_TF'
+        short_label = 'Aggregated_Marks_or_TF',
+        visibility='full'
         )
         trackdb.add_tracks(supertrack)
 

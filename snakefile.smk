@@ -19,7 +19,7 @@ WORKDIR = os.path.abspath(config["OUTPUT_DIR"])
 PROJECT_NAME = config['PROJECT_NAME']
 BAM_INPUT = config['bam']
 NARROW_BROAD = yaml.load(open(config['narrow_broad']))
-
+GENOME_SIZE = config['genome_size']
 
 ###########################################################################
 #################### Defining samples, cases, controls ####################
@@ -533,7 +533,7 @@ rule computeMatrix_QC:
     shell:
         """
         source activate full-pipe-main-env
-	computeMatrix reference-point -S {input} -R {TSS_BED} -a 3000 -b 3000 -out {output} --numberOfProcessors max/2
+	    computeMatrix reference-point -S {input} -R {TSS_BED} -a 3000 -b 3000 -out {output} --numberOfProcessors max/2
         """
 
 # Deeptools QC
@@ -707,7 +707,7 @@ rule get_bigbeds:
     shell:
         """
         cut -f1,2,3 {input} | LC_COLLATE=C sort -k1,1 -k2,2n > {params.bed1}
-        scripts/bedToBigBed {params.bed1} ~/genome_size_GRCh37.75.txt {output} -type=bed3
+        scripts/bedToBigBed {params.bed1} {GENOME_SIZE} {output} -type=bed3
         """
 
 # Creating a Hub for UCSC
@@ -717,6 +717,7 @@ rule get_UCSC_hub:
         bigwig = ALL_BIGWIG_INPUT
     output:
         ALL_HUB
+    log: os.path.join(WORKDIR, "00log/log.trackhub")
     params:
         output_dir = HUB_FOLDER, 
         sample_name = list(SAMPLES.keys()), 
@@ -724,7 +725,8 @@ rule get_UCSC_hub:
     shell:
         """
         source activate full-pipe-main-env
-        python3 scripts/makeUCSCtrackHub.py --hub_name {PROJECT_NAME} --sample_name {params.sample_name} --categories {params.categories} --output_dir {params.output_dir} --peaks {input.bed} --bw {input.bigwig} 2> makehub.err
+        python3 scripts/makeUCSCtrackHub.py --hub_name {PROJECT_NAME} --sample_name {params.sample_name} --categories {params.categories} \
+        --output_dir {params.output_dir} --peaks {input.bed} --bw {input.bigwig} 2> {log}
         """
 
 ###########################################################################

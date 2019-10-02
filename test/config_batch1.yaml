@@ -1,0 +1,53 @@
+PROJECT_NAME: 'test'
+
+
+# Path to a JSON file with samples and their corresponding FASTQ files.
+SAMPLES_JSON: './test/samples_input_test.json'
+OUTPUT_DIR: './test/outputtest'
+
+# Name of your input
+control: 'Input'
+
+bam: False
+
+
+
+# - Index for bowtie2
+idx_bt1: '/sandbox/resources/species/human/ensembl/release-75/index-bowtie-2.3.0/Homo_sapiens.GRCh37.75.dna.toplevel'
+
+# - your genome size :
+genome_size: '/sandbox/resources/species/human/ensembl/release-75/index-bowtie-2.3.0/Homo_sapiens.GRCh37.75.dna.toplevel.fa.fai'
+
+# - Downsampling. Set the number of reads for downsampling
+target_reads: 30000000
+
+# - TSS file for QC
+tss_bed: 'data/GRCh37_TSS.bed'
+
+# MACS parameters for peak calling
+macs_g: hs
+macs_pvalue: 1e-5
+macs2_g: hs
+macs2_pvalue: 1e-5
+macs2_pvalue_broad: 1e-5
+
+# config file for narrow or broad peak calling for all
+narrow_broad: './broad_narrow_histone_TF.yaml'
+
+# ~~~~~~~~~~~~~~~~ ChromHMM ~~~~~~~~~~~~~~~~~
+# - run chromHMM or not ---
+chromHMM: False
+# ---- chromHMM bin size -----
+binsize: 200
+# ---- Number of states -----
+state: 4
+# ----- chromHMM genome ------
+chromHmm_g : /sandbox/users/foucal-a/genome_size_GRCh37.75_canonical_CHR.txt
+
+## histone marks that you want to include in the chromHMM model
+## space delimited. entries should be from the third column of the meta.txt file fed
+## into the samples2json.py file.
+
+histone_for_chromHMM: "H3K4me1 H3K4me3 H3K27ac H3K27me3"
+
+
