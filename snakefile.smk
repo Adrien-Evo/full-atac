@@ -181,8 +181,7 @@ for key, value in CONTROL_SAMPLE_DICT.items():
 # ~~~~~~ files with case and control ~~~~~~ #
 ALL_PEAKS = []
 ALL_BIGWIG_INPUT = []
-ALL_BROADPEAK = []
-#ALL_BIGWIGUCSC = []
+ALL_BIGBED = []
 ALL_FEATURECOUNTS = []
 ALL_BROADPEAKCOUNTS = []
 ALL_NARROWPEAKCOUNTS = []
@@ -193,13 +192,10 @@ for case in CASES:
     sample = "_".join(case.split("_")[0:-1])
     control = CONTROL_SAMPLE_DICT[sample]
     if control in CONTROLS:
-        #ALL_PEAKS.append(os.path.join(WORKDIR, "08peak_macs1/{}-vs-{}-macs1_peaks.bed").format(case, control))
         ALL_PEAKS.append(os.path.join(WORKDIR, "08peak_macs1/{}-vs-{}-macs1-narrow_peaks.bed").format(case, control))
-        #ALL_PEAKS.append(os.path.join(WORKDIR, "09peak_macs2/{}-vs-{}-macs2_peaks.xls").format(case, control))
         ALL_PEAKS.append(os.path.join(WORKDIR, "09peak_macs2/{}-vs-{}-macs2_peaks.broadPeak").format(case, control))
         ALL_BIGWIG_INPUT.append(os.path.join(WORKDIR, "06bigwig_input/{}-vs-{}.bw").format(case, control))
-        ALL_BROADPEAK.append(os.path.join(WORKDIR, "12UCSC_broad/{}-vs-{}-macs2_peaks.broadPeak").format(case, control))
-        #ALL_BIGWIGUCSC.append(os.path.join(WORKDIR, "UCSC_compatible_bigWig/{}-vs-{}.bw").format(case, control))
+        ALL_BIGBED.append(os.path.join(WORKDIR, "12UCSC/{}-vs-{}-macs2_peaks.bb").format(case, control))
         ALL_FEATURECOUNTS.append(os.path.join(WORKDIR, "DPQC/{}-vs-{}.FRiP.summary").format(case,control))
         ALL_BROADPEAKCOUNTS.append(os.path.join(WORKDIR, "DPQC/{}-vs-{}-broadpeak-count_mqc.json").format(case,control))
         ALL_NARROWPEAKCOUNTS.append(os.path.join(WORKDIR, "DPQC/{}-vs-{}-narrowpeak-count_mqc.json").format(case,control))
@@ -638,9 +634,7 @@ rule call_narrow_peaks_macs1:
             --outdir {params.outdir} -n {params.name} --shiftsize `cut -f3 {input.spp} | awk 'BEGIN{{FS=","}}{{printf "%.0f",($1+1)/2}}'` --nomodel -p {config[macs_pvalue]} &> {log.macs1_nomodel}
         """
         
-
 # Peak calling using MACS 2
-
 rule call_broad_peaks_macs2:
     input: 
         control = os.path.join(WORKDIR, "04aln_downsample/{control}-downsample.sorted.bam"), 
@@ -667,7 +661,7 @@ rule call_broad_peaks_macs2:
 ####### VISUALIZATION bigWig and bigBed generation and HUB creation #######
 ###########################################################################
 
-rule make_bigwigs_using_inputs:
+rule get_bigwigs_using_inputs:
     input : 
         case =  os.path.join(WORKDIR, "04aln_downsample/{case}-downsample.sorted.bam"),
         bai_case = os.path.join(WORKDIR, "04aln_downsample/{case}-downsample.sorted.bam.bai"),
@@ -687,7 +681,7 @@ rule make_bigwigs_using_inputs:
         --extendReads `cut -f3 {input.spp} | awk 'BEGIN{{FS=","}}{{print $1}}'` -o {output} 2> {log}
         """
 
-rule make_bigwigs:
+rule get_bigwigs:
     input : 
         bam = os.path.join(WORKDIR, "04aln_downsample/{sample}-downsample.sorted.bam"),
         bai = os.path.join(WORKDIR, "04aln_downsample/{sample}-downsample.sorted.bam.bai"),
@@ -704,36 +698,22 @@ rule make_bigwigs:
         --extendReads `cut -f3 {input.spp} | awk 'BEGIN{{FS=","}}{{print $1}}'` -o {output} 2> {log}
         """
 
-rule get_UCSC_bigwig:
-    input : os.path.join(WORKDIR, "06bigwig_input/{case}-vs-{control}.bw")
-    output : os.path.join(WORKDIR, "UCSC_compatible_bigWig/{case}-vs-{control}.bw")
-    params : 
-        wig1 = os.path.join(WORKDIR, "06bigwig_input/{case}-vs-{control}.temp.wig"), 
-        wig2 = os.path.join(WORKDIR, "06bigwig_input/{case}-vs-{control}.temp2.wig")
-    shell:
-        """
-        scripts/bigWigToWig {input} {params.wig1}
-        sed -r 's/^[0-9]|^X|^Y|^MT/chr&/g' {params.wig1} | LC_COLLATE=C sort -k1,1 -k2,2n > {params.wig2}
-        scripts/wigToBigWig {params.wig2} ~/genome_size_UCSC_compatible_GRCh37.75.txt {output}
-        rm {params.wig1} {params.wig2}
-        """
-
-# Cleaning broadGapped peak by adding "chr" on chr, sorting, setting score > 1000 to 1000 with awk then converting to bigbed
-rule get_UCSC_bigBed:
+# Cleaning peaks by taking only columns 1, 2, 3 because narrowpeaks and broadpeaks are different.
+rule get_bigbeds:
     input: get_peaks
-    output: os.path.join(WORKDIR, "12UCSC_broad/{case}-vs-{control}-macs2_peaks.broadPeak")
+    output: os.path.join(WORKDIR, "12UCSC/{case}-vs-{control}-macs2_peaks.bb")
     params : 
         bed1 = temp(os.path.join(WORKDIR, "12UCSC_broad/{case}-vs-{control}-macs2_peaks.bed"))
     shell:
         """
-        sed -r 's/^[0-9]|^X|^Y|^MT/chr&/g' {input} | cut -f1,2,3 | LC_COLLATE=C sort -k1,1 -k2,2n | awk '{{if($5 > 1000) $5=1000}}; {{print $0}}' > {params.bed1}
-        scripts/bedToBigBed {params.bed1} ~/genome_size_UCSC_compatible_GRCh37.75.txt {output} -type=bed3
+        cut -f1,2,3 {input} | LC_COLLATE=C sort -k1,1 -k2,2n > {params.bed1}
+        scripts/bedToBigBed {params.bed1} ~/genome_size_GRCh37.75.txt {output} -type=bed3
         """
 
 # Creating a Hub for UCSC
 rule get_UCSC_hub:
     input:  
-        bed = ALL_BROADPEAK, 
+        bed = ALL_BIGBED, 
         bigwig = ALL_BIGWIG_INPUT
     output:
         ALL_HUB
