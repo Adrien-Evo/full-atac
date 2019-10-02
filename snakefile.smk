@@ -3,6 +3,7 @@ import os
 import json
 import yaml
 import numpy as np
+from snakemake.logging import logger
 
 #  Safe execution of scripts  #
 shell.prefix("set -eo pipefail; echo BEGIN at $(date); ")
@@ -339,7 +340,7 @@ def get_peaks(wildcards):
                 elif(NARROW_BROAD[key] == 'broad'):
                     return os.path.join(WORKDIR, "09peak_macs2/" + wildcards.case + "-vs-" + wildcards.control + "-macs2_peaks.broadPeak")
             else:
-                print("Don't know how to handle mark " + wildcards.case + ". Will work with narrow peaks")
+                logger.warning("Marks or TF not in the {} for {}. Will work with narrow peaks".format(config['narrow_broad'],wildcards.case))
                 return os.path.join(WORKDIR, "08peak_macs1/" + wildcards.case + "-vs-" + wildcards.control + "-macs1-narrow_peaks.bed")
 
 #TODO see if this is usefull
@@ -719,14 +720,14 @@ rule get_UCSC_bigwig:
 
 # Cleaning broadGapped peak by adding "chr" on chr, sorting, setting score > 1000 to 1000 with awk then converting to bigbed
 rule get_UCSC_bigBed:
-    input: os.path.join(WORKDIR, "09peak_macs2/{case}-vs-{control}-macs2_peaks.broadPeak")
+    input: get_peaks
     output: os.path.join(WORKDIR, "12UCSC_broad/{case}-vs-{control}-macs2_peaks.broadPeak")
     params : 
         bed1 = temp(os.path.join(WORKDIR, "12UCSC_broad/{case}-vs-{control}-macs2_peaks.bed"))
     shell:
         """
-        sed -r 's/^[0-9]|^X|^Y|^MT/chr&/g' {input} | LC_COLLATE=C sort -k1,1 -k2,2n | awk '{{if($5 > 1000) $5=1000}}; {{print $0}}' > {params.bed1}
-        scripts/bedToBigBed {params.bed1} ~/genome_size_UCSC_compatible_GRCh37.75.txt {output} -type=bed6+3
+        sed -r 's/^[0-9]|^X|^Y|^MT/chr&/g' {input} | cut -f1,2,3 | LC_COLLATE=C sort -k1,1 -k2,2n | awk '{{if($5 > 1000) $5=1000}}; {{print $0}}' > {params.bed1}
+        scripts/bedToBigBed {params.bed1} ~/genome_size_UCSC_compatible_GRCh37.75.txt {output} -type=bed3
         """
 
 # Creating a Hub for UCSC

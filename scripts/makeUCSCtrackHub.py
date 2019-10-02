@@ -2,12 +2,9 @@
 
 __author__ = 'AF'
 
-# check the tutorial here https://pythonhosted.org/trackhub/tutorial.html
-# import the components we'll be using
-# 01/12/2016
+# This script is adapted from the tutorial here https://pythonhosted.org/trackhub/tutorial.html
 
 import argparse
-
 import glob, os
 import trackhub
 
@@ -84,13 +81,11 @@ def simplify_filename(fn):
             simplifiedName = simplifiedName + sample_name
     
     if args.categories is not None :
-        simplifiedName = simplifiedName + "_"
         for category in args.categories:
-            #This is not ideal in a context where it's not used in a the pipeline
-            category_string = "_"+category +"_"
+            #This is not ideal in a context where it's not used in the full-chipseq/full-atac pipeline
             if category in fn:
-                simplifiedName = simplifiedName +  category
-    
+                simplifiedName = simplifiedName + "_" + category
+
     return simplifiedName
 
 # Sample subgroup
@@ -225,10 +220,10 @@ if args.categories is not None :
         elif len(args.categories) == 1: 
             trackdb.add_tracks(overlay)
         
-        #Now let slooks at the big wig files added and look for the category pattern and add them to the overlay track
-        #category string uses the "_" from the main snakemake file that defines samples based on {sample}_{marks}.
-        #This is not ideal in a context where it's not used in a the pipeline
-        category_string = "_"+category +"_"
+        #Now lets looks at the big wig files added and look for the category pattern and add them to the overlay track
+        #category string uses the "_" from the main snakemake file + "-vs-input" that defines samples based on {sample}_{marks}.
+        #This is not ideal in a context where it's not used in a the pipeline.
+        category_string = "_" + category + "-vs-"
         for bigwig in args.bw :
             if category_string in bigwig:
 
