@@ -776,7 +776,7 @@ rule homer_annotate:
     params:
         genome = GENOME_FASTA, 
         gtf = GENOME_GTF
-    log: os.path.join(WORKDIR,"00log{case}-vs-{control}-homer-annotated.log"
+    log: os.path.join(WORKDIR,"00log{case}-vs-{control}-homer-annotated.log")
     message: "Annotating peak files with HOMER"
     shell:
         """
@@ -801,7 +801,7 @@ if config["chromHMM"]:
         message: "converting bam to bed for {input}"
         shell:
             """
-            source activate full-pipe-chromhmm
+            source activate full-pipe-main-env
             bedtools bamtobed -i {input} > {output}
             """
 
@@ -838,7 +838,7 @@ if config["chromHMM"]:
             memory = "32G"
         shell:
             """
-            source activate full-pipe-chromhmm
+            source activate full-pipe-main-env
             ChromHMM.sh -Xmx{params.memory} BinarizeBed -b {config[binsize]} {config[chromHmm_g]} {params.bamtobed_folder} {input.cellmarkfiletable} {params.folder} 2> {log}
             """
 
@@ -854,6 +854,6 @@ if config["chromHMM"]:
             memory = "32G"
         shell:
             """
-            source activate full-pipe-chromhmm
+            source activate full-pipe-main-env
             unset DISPLAY && ChromHMM.sh -Xmx{params.memory} LearnModel -p 0 -b {config[binsize]} {params.input_folder} {params.output_folder} {config[state]} {config[chromHmm_g]} 2> {log}
             """

@@ -18,6 +18,7 @@ dependencies:
   - certifi=2019.9.11=py36_0
   - cffi=1.12.0=py36h9745a5d_0
   - chardet=3.0.4=py36_1003
+  - chromhmm=1.19=0
   - click=7.0=py_0
   - colormath=3.0.0=py_2
   - cryptography=2.7=py36h72c5cf5_0
@@ -41,6 +42,7 @@ dependencies:
   - gstreamer=1.14.4=h66beb1c_1001
   - gtk2=2.24.31=hb68c50a_1001
   - harfbuzz=2.3.1=h6824563_0
+  - homer=4.10=pl526hc9558a2_0
   - htslib=1.9=h47928c2_5
   - icu=58.2=hf484d3e_1000
   - idna=2.8=py36_1000
@@ -130,6 +132,7 @@ dependencies:
   - ucsc-bigbedtobed=357=1
   - ucsc-bigwigtowig=357=1
   - ucsc-wigtobigwig=357=h35c10e6_3
+  - unzip=6.0=h516909a_0
   - urllib3=1.24.1=py36_1000
   - wheel=0.33.0=py36_0
   - xorg-kbproto=1.0.7=h14c3975_1002

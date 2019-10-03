@@ -45,8 +45,8 @@ macs2_pvalue_broad: 1e-5
 narrow_broad: './broad_narrow_histone_TF.yaml'
 
 # ~~~~~~~~~~~~~~~~ ChromHMM ~~~~~~~~~~~~~~~~~
-# - run chromHMM or not ---
-chromHMM: False
+# - run chromHMM or not --- chromHMM: True  || chromHMM: False
+chromHMM: True
 # ---- chromHMM bin size -----
 binsize: 200
 # ---- Number of states -----

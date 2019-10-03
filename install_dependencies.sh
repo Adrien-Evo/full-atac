@@ -18,11 +18,8 @@ echo -e "\e[33m#################################################\e[0m"
 echo -e "\e[33mInstalling conda environments\e[0m"
 echo -e "\e[33m#################################################\n\e[0m"
 
-echo -e "Creating conda env for \e[32mbowtie2 samtools bedtools deepTools sambamba fastqc multiqc featureCounts \e[0m in the pipeline"
+echo -e "Creating conda env for \e[32mbowtie2 samtools bedtools deepTools sambamba fastqc multiqc featureCounts chromHMM homer \e[0m in the pipeline"
 conda env create -f envs/full-pipe-main-env.yml
-
-echo -e "Creating conda env for \e[32mchromHMM\e[0m"
-conda env create -f envs/full-pipe-chromhmm.yml 
 
 echo -e "Creating conda env for \e[32mphantompeakqualtools\e[0m"
 conda env create -f envs/full-pipe-spp.yml
@@ -39,6 +36,7 @@ echo -e "\e[33m#################################################\n\e[0m"
 # For hs
 echo -e "\e[95mFor homo sapiens GRCh37\e[0m"
 
-echo -e "\e[95m TSS beds\e[0m"
-wget -q -O - "http://ftp.ensembl.org/pub/grch37/current/gtf/homo_sapiens/Homo_sapiens.GRCh37.87.gtf.gz" | gunzip -c | grep -v "#" | awk '($3=="gene")' \
+echo -e "\e[95m Annotation file and TSS beds\e[0m"
+wget -q -O - "http://ftp.ensembl.org/pub/grch37/current/gtf/homo_sapiens/Homo_sapiens.GRCh37.87.gtf.gz" | gunzip -c > ./data/homo_sapiens/Homo_sapiens.GRCh37.87.gtf
+cat ./data/homo_sapiens/Homo_sapiens.GRCh37.87.gtf | grep -v "#" | awk '($3=="gene")' \
 | grep protein_coding | awk '{OFS="\t"};{if($7 == "+"){start = $4} else if($7 == "-"){start = $5}};{print $1, start-1, start}' > ./data/GRCh37_TSS.bed
