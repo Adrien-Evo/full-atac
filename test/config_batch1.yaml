@@ -10,19 +10,29 @@ control: 'Input'
 
 bam: False
 
-
+#####################################################
+##########  Genome data #############################
+#####################################################
 
 # - Index for bowtie2
-idx_bt1: '/sandbox/resources/species/human/ensembl/release-75/index-bowtie-2.3.0/Homo_sapiens.GRCh37.75.dna.toplevel'
+idx_bt2: '/sandbox/resources/species/human/ensembl/release-75/index-bowtie-2.3.0/Homo_sapiens.GRCh37.75.dna.toplevel'
 
-# - your genome size :
+# - genome fasta
+genome_fasta: '/sandbox/resources/species/human/ensembl/release-75/Homo_sapiens.GRCh37.75.dna.toplevel.fa'
+
+# - your genome  :
 genome_size: '/sandbox/resources/species/human/ensembl/release-75/index-bowtie-2.3.0/Homo_sapiens.GRCh37.75.dna.toplevel.fa.fai'
+
+# - genome annotation gtf file :
+genome_gtf: 'data/homo_sapiens/Homo_sapiens.GRCh37.87.gtf'
+
+# - TSS file for QC
+genome_tss: 'data/GRCh37_TSS.bed'
+
 
 # - Downsampling. Set the number of reads for downsampling
 target_reads: 30000000
 
-# - TSS file for QC
-tss_bed: 'data/GRCh37_TSS.bed'
 
 # MACS parameters for peak calling
 macs_g: hs

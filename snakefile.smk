@@ -14,12 +14,16 @@ shell.prefix("set -eo pipefail; echo BEGIN at $(date); ")
 
 # Loading config file items
 FILES = json.load(open(config['SAMPLES_JSON']))
-TSS_BED = config['tss_bed']
 WORKDIR = os.path.abspath(config["OUTPUT_DIR"])
 PROJECT_NAME = config['PROJECT_NAME']
 BAM_INPUT = config['bam']
 NARROW_BROAD = yaml.load(open(config['narrow_broad']))
+# -- genome related config - #
+GENOME_FASTA = config['genome_fasta']
+GENOME_GTF = config['genome_gtf']
 GENOME_SIZE = config['genome_size']
+GENOME_TSS = config['genome_tss']
+
 
 ###########################################################################
 #################### Defining samples, cases, controls ####################
@@ -185,7 +189,7 @@ ALL_BIGBED = []
 ALL_FEATURECOUNTS = []
 ALL_BROADPEAKCOUNTS = []
 ALL_NARROWPEAKCOUNTS = []
-
+ALL_ANNOTATED_PEAKS = []
 
 # going through all cases samples (sample_mark) #
 for case in CASES:
@@ -199,7 +203,7 @@ for case in CASES:
         ALL_FEATURECOUNTS.append(os.path.join(WORKDIR, "DPQC/{}-vs-{}.FRiP.summary").format(case,control))
         ALL_BROADPEAKCOUNTS.append(os.path.join(WORKDIR, "DPQC/{}-vs-{}-broadpeak-count_mqc.json").format(case,control))
         ALL_NARROWPEAKCOUNTS.append(os.path.join(WORKDIR, "DPQC/{}-vs-{}-narrowpeak-count_mqc.json").format(case,control))
-
+        ALL_ANNOTATED_PEAKS.append(os.path.join(WORKDIR, "annotate/{}-vs-{}-peaks_annotated.txt").format(case,control))
 # ~~~~~~~~~~~~~~~ Bam files ~~~~~~~~~~~~~~~ #
 CONTROL_BAM = expand(os.path.join(WORKDIR, "03aln/{sample}.sorted.bam"), sample = CONTROL_MERGED_FILES)
 CASE_BAM = expand(os.path.join(WORKDIR, "03aln/{sample}.sorted.bam"), sample = CASES)
@@ -267,7 +271,7 @@ else:
 ########################### Targets for rule all ##########################
 ###########################################################################
 TARGETS = []
-TARGETS.extend(ALL_PEAKS)
+TARGETS.extend(ALL_ANNOTATED_PEAKS)
 TARGETS.extend(ALL_MULTIQC)
 TARGETS.extend(ALL_HUB)
 
@@ -380,7 +384,7 @@ if BAM_INPUT == False:
         shell:
             """
             source activate full-pipe-main-env
-            bowtie2 -p 8 -x {config[idx_bt1]} -q {input} 2> {log} \
+            bowtie2 -p 8 -x {config[idx_bt2]} -q {input} 2> {log} \
             | samblaster \
             | samtools view -bu - \
             | samtools sort -m 8G -@ 4 -T {output}.tmp -o {output}
@@ -529,11 +533,11 @@ rule phantom_peak_qual:
 rule computeMatrix_QC:
     input : get_big_wig_with_mark_or_tf 
     output : os.path.join(WORKDIR, "DPQC/{mark}.computeMatrix.gz")
-    params : TSS_BED
+    params : GENOME_TSS
     shell:
         """
         source activate full-pipe-main-env
-	    computeMatrix reference-point -S {input} -R {TSS_BED} -a 3000 -b 3000 -out {output} --numberOfProcessors max/2
+	    computeMatrix reference-point -S {input} -R {params} -a 3000 -b 3000 -out {output} --numberOfProcessors max/2
         """
 
 # Deeptools QC
@@ -657,6 +661,7 @@ rule call_broad_peaks_macs2:
             --outdir {params.outdir} -n {params.name} --extsize `cut -f3 {input.spp} | awk 'BEGIN{{FS=","}}{{print $1}}'` -p {config[macs2_pvalue]} --broad --broad-cutoff {config[macs2_pvalue_broad]} --nomodel &> {log}
         """
 
+
 ###########################################################################
 ####### VISUALIZATION bigWig and bigBed generation and HUB creation #######
 ###########################################################################
@@ -733,7 +738,6 @@ rule get_UCSC_hub:
 ################################# MULTIQC #################################
 ###########################################################################
 
-
 # MultiQC: Moving the config file in the multiqc dir + adding some custom info in the header
 rule multiQC_config:
     input : "multiqc_config.yaml"
@@ -743,7 +747,6 @@ rule multiQC_config:
         """
         sed "s/DATE/$(date)/g" {input} | sed "s/PROJECTNAME/{PROJECT_NAME}/g"  > {output}
         """
-
 
 # MultiQC: Takes fastqc, phantompeakqualtools, deeptools, bowtie, fastQC and feature counts for FRiP and custom MACS2 peak counts
 rule multiQC:
@@ -758,6 +761,27 @@ rule multiQC:
         """
         source activate full-pipe-main-env
         multiqc {input.multiqc_files} -o {params} --config {input.multiqc_config} -v -f 2> {log}
+        """
+
+###########################################################################
+########################### Fonctional analysis ###########################
+###########################################################################
+
+# Annotation with homer
+rule homer_annotate:
+    input: 
+        peaks = get_peaks 
+    output:
+        annotated_peaks = os.path.join(WORKDIR, "annotate/{case}-vs-{control}-peaks_annotated.txt")
+    params:
+        genome = GENOME_FASTA, 
+        gtf = GENOME_GTF
+    log: os.path.join(WORKDIR,"00log{case}-vs-{control}-homer-annotated.log"
+    message: "Annotating peak files with HOMER"
+    shell:
+        """
+        source activate full-pipe-main-env
+        annotatePeaks.pl {input.peaks} {params.genome} -gtf {params.gtf} > {output.annotated_peaks} 2> {log}
         """
 
 ###########################################################################
