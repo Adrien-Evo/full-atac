@@ -757,7 +757,7 @@ rule get_UCSC_hub:
 
 # MultiQC: Moving the config file in the multiqc dir + adding some custom info in the header
 rule multiQC_config:
-    input : "multiqc_config.yaml"
+    input : "config/multiqc_config.yaml"
     output: os.path.join(WORKDIR, "10multiQC/multiqc_config.yaml")
     message: "Moving multiqc config"
     shell:

@@ -42,7 +42,7 @@ macs2_pvalue: 1e-5
 macs2_pvalue_broad: 1e-5
 
 # config file for narrow or broad peak calling for all
-narrow_broad: './broad_narrow_histone_TF.yaml'
+narrow_broad: './config/broad_narrow_histone_TF.yaml'
 
 # ~~~~~~~~~~~~~~~~ ChromHMM ~~~~~~~~~~~~~~~~~
 # - run chromHMM or not --- chromHMM: True  || chromHMM: False
@@ -51,8 +51,7 @@ chromHMM: True
 binsize: 200
 # ---- Number of states -----
 state: 4
-# ----- chromHMM genome ------
-chromHmm_g : /sandbox/users/foucal-a/genome_size_GRCh37.75_canonical_CHR.txt
+
 
 ## histone marks that you want to include in the chromHMM model
 ## space delimited. entries should be from the third column of the meta.txt file fed
