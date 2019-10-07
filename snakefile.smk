@@ -173,12 +173,13 @@ for key, value in CONTROL_SAMPLE_DICT.items():
     MARKS_COMPLETE_NAME.setdefault(value, []).append(key)
 
 ###Checking
-print("SAMPLES     ",SAMPLES)
-print("SAMPLES_COMPLETE_NAME     ", SAMPLES_COMPLETE_NAME)
-print("MARKS     ", MARKS)
-print("MARKS_NO_CONTROL     ", MARKS_NO_CONTROL)
-print("MARKS_COMPLETE_NAME     ", MARKS_COMPLETE_NAME)
-print("CONTROL_SAMPLE_DICT     ",CONTROL_SAMPLE_DICT)
+# print("SAMPLES     ",SAMPLES)
+# print("SAMPLES_COMPLETE_NAME     ", SAMPLES_COMPLETE_NAME)
+# print("MARKS     ", MARKS)
+# print("MARKS_NO_CONTROL     ", MARKS_NO_CONTROL)
+# print("MARKS_COMPLETE_NAME     ", MARKS_COMPLETE_NAME)
+# print("CONTROL_SAMPLE_DICT     ",CONTROL_SAMPLE_DICT)
+
 ###########################################################################
 ########################### Listing OUTPUT FILES ##########################
 ###########################################################################
@@ -839,7 +840,7 @@ if config["chromHMM"]:
                         case_bed = sample + "_"+ histone + ".bed"
                     if os.path.exists(join(os.path.join(WORKDIR, "bamtobed"), case_bed)):
                         f.write(sample + "\t" +  histone + "\t" + case_bed + "\t" + control + ".bed" + "\n")
-    print(SAMPLE_FOR_CHROMHMM)
+    
     rule chromHMM_binarize:
         input :
             cellmarkfiletable = os.path.join(WORKDIR, "chromHMM/cellmarkfiletable.txt"), 
