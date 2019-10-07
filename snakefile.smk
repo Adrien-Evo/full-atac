@@ -4,6 +4,7 @@ import json
 import yaml
 import numpy as np
 from snakemake.logging import logger
+import re
 
 #  Safe execution of scripts  #
 shell.prefix("set -eo pipefail; echo BEGIN at $(date); ")
@@ -115,7 +116,7 @@ ALL_SAMPLES = CASES + CONTROLS
 # ~~~~~~~~~~~~~~ Samples dict ~~~~~~~~~~~~~ #
 
 # Regroup Marks or TF by sample
-# e.g. Mousekidney01: [H3K27, H3K27me3], Mouseliver04: [H3K27, H3K27me3]
+# e.g. Mousekidney01: [H3K27, H3K27me3, Input1], Mouseliver04: [H3K27, H3K27me3, Input2]
 SAMPLES = dict()
 for sample in sorted(FILES.keys()):
     for mark in FILES[sample].keys():
@@ -167,14 +168,17 @@ for sample in sorted(FILES.keys()):
         if(mark not in CONTROL_NAME):
             MARKS_COMPLETE_NAME.setdefault(mark, []).append(sample + "_"  + mark)
 
-# Here create a list with all marks without Input/Control mentionned, before adding the controls to the dict
-MARKS_NO_CONTROL_COMPLETE_NAME = list(MARKS_COMPLETE_NAME.keys())
-
 # Adding the key for the merged input
 for key, value in CONTROL_SAMPLE_DICT.items():
     MARKS_COMPLETE_NAME.setdefault(value, []).append(key)
 
-
+###Checking
+print("SAMPLES     ",SAMPLES)
+print("SAMPLES_COMPLETE_NAME     ", SAMPLES_COMPLETE_NAME)
+print("MARKS     ", MARKS)
+print("MARKS_NO_CONTROL     ", MARKS_NO_CONTROL)
+print("MARKS_COMPLETE_NAME     ", MARKS_COMPLETE_NAME)
+print("CONTROL_SAMPLE_DICT     ",CONTROL_SAMPLE_DICT)
 ###########################################################################
 ########################### Listing OUTPUT FILES ##########################
 ###########################################################################
@@ -236,17 +240,29 @@ ALL_DPQC.extend(expand(os.path.join(WORKDIR, "DPQC/{samp}.plotFingerprintOutQual
 # ~~~~~~~~~~~ ChromHMM specific ~~~~~~~~~~~ #
 if config["chromHMM"]:
 
+    #Predicting all output files for chromHMM using all canonical chr in the genome file.
     def get_chr(chromSize):
         with open(chromSize, 'r') as fs:
             chr = [line.rstrip().split('\t')[0] for line in fs]
+            chr = [a for a in chr if not re.search('\.', a)]
+            chr = [a for a in chr if not re.search('_', a)]
             return(chr)
+    
+    CHRHMM = get_chr(GENOME_SIZE)
     # Read histone
-    HISTONE_INCLUDED = config["histone_for_chromHMM"].split(" ")
-    HISTONE_CASES = [sample for sample in CASES if sample.split("_")[-1] in HISTONE_INCLUDED ]
-    HISTONE_SAMPLE = list(set([sample.split("_")[0] for sample in CASES if sample.split("_")[-1] in HISTONE_INCLUDED ]))
-    BAM_TO_BED = expand(os.path.join(WORKDIR, "bamtobed/{sample}.bed"), sample = HISTONE_CASES + CONTROLS)
-    CHROMHMM = expand(os.path.join(WORKDIR, "chromHMM/learn_{nb_state}_states/{sample}_{nb_state}_segments.bed"), sample = HISTONE_SAMPLE, nb_state = config["state"])
-    CHRHMM = get_chr(config['chromHmm_g'])
+    HISTONE_INCLUDED = config["histone_for_chromHMM"]
+    HISTONE_FOR_CHROMHMM = [histone for histone in MARKS if histone in HISTONE_INCLUDED ]
+    #sample_mark for chromHMM in case not all samples have all the marks
+    SAMPLE_MARK_FOR_CHROMHMM  = [MARKS_COMPLETE_NAME[histone] for histone in MARKS_COMPLETE_NAME if histone in HISTONE_INCLUDED]
+    #Flattening the list
+    SAMPLE_MARK_FOR_CHROMHMM = [sample for sublist in SAMPLE_MARK_FOR_CHROMHMM for sample in sublist]
+    #sample for chromHMM in case not all samples have all the marks
+    SAMPLE_FOR_CHROMHMM  = [MARKS[histone] for histone in MARKS if histone in HISTONE_INCLUDED]
+    #Flattening the list and removing duplicates
+    SAMPLE_FOR_CHROMHMM = list(set([sample for sublist in SAMPLE_FOR_CHROMHMM for sample in sublist]))
+
+    BAM_TO_BED = expand(os.path.join(WORKDIR, "bamtobed/{sample}.bed"), sample = SAMPLE_MARK_FOR_CHROMHMM + CONTROLS)
+    CHROMHMM = expand(os.path.join(WORKDIR, "chromHMM/learn_{nb_state}_states/{sample}_{nb_state}_segments.bed"), sample = SAMPLE_FOR_CHROMHMM, nb_state = config["state"])
     CHROMHMM_TABLE = [os.path.join(WORKDIR, "chromHMM/cellmarkfiletable.txt")]
 
 # ~~~~~~~~~~~~~~~~~~ Misc ~~~~~~~~~~~~~~~~~ #
@@ -255,6 +271,7 @@ ALL_MULTIQC = [os.path.join(WORKDIR, "10multiQC/multiqc_report.html")]
 ALL_CONFIG= [os.path.join(WORKDIR, "03aln/bams.json")]
 
 HUB_FOLDER = os.path.join(WORKDIR, "UCSC_HUB")
+
 ALL_HUB = [os.path.join(HUB_FOLDER,"{}.hub.txt").format(PROJECT_NAME)]
 
 # ======================================================== #
@@ -804,32 +821,31 @@ if config["chromHMM"]:
             source activate full-pipe-main-env
             bedtools bamtobed -i {input} > {output}
             """
-
+    #This rule does not need an input, but it's nice ti have it wrapped up like that anyway.
     rule make_table:
         input : 
-            expand(os.path.join(WORKDIR, "bamtobed/{sample}.bed"), sample = HISTONE_CASES + CONTROLS)
+            expand(os.path.join(WORKDIR, "bamtobed/{sample}.bed"), sample = SAMPLE_MARK_FOR_CHROMHMM + CONTROLS)
         output : 
             os.path.join(WORKDIR, "chromHMM/cellmarkfiletable.txt")
         log: os.path.join(WORKDIR, "00log/make_table_chromHMM.log")
-        message: "making a table for chromHMM"
+        message: "Making the cellmark table for chromHMM"
         run:
             import os
             from os.path import join
             with open (output[0], "w") as f:
-                for case in HISTONE_CASES:
-                    sample = "_".join(case.split("_")[0:-1])
-                    mark = case.split("_")[-1]
-                    control = sample + "_" + CONTROL_NAME
-                    case_bed = case + ".bed"
+                for histone in HISTONE_FOR_CHROMHMM:
+                    for sample in MARKS[histone]:
+                        control = CONTROL_SAMPLE_DICT[sample]
+                        case_bed = sample + "_"+ histone + ".bed"
                     if os.path.exists(join(os.path.join(WORKDIR, "bamtobed"), case_bed)):
-                        f.write(sample + "\t" +  mark + "\t" + case + ".bed" + "\t" + control + ".bed" + "\n")
-
+                        f.write(sample + "\t" +  histone + "\t" + case_bed + "\t" + control + ".bed" + "\n")
+    print(SAMPLE_FOR_CHROMHMM)
     rule chromHMM_binarize:
         input :
             cellmarkfiletable = os.path.join(WORKDIR, "chromHMM/cellmarkfiletable.txt"), 
-            beds = expand(os.path.join(WORKDIR, "bamtobed/{sample}.bed"), sample = HISTONE_CASES + CONTROLS)
+            beds = expand(os.path.join(WORKDIR, "bamtobed/{sample}.bed"), sample = SAMPLE_MARK_FOR_CHROMHMM + CONTROLS)
         output:
-            expand(os.path.join(WORKDIR, "chromHMM/binarizedData/{sample}-{chr}-binary.txt"), sample = HISTONE_SAMPLE, chr = CHRHMM)
+            expand(os.path.join(WORKDIR, "chromHMM/binarizedData/{sample}-{chr}-binary.txt"), sample = SAMPLE_FOR_CHROMHMM, chr = CHRHMM)
         log:
             os.path.join(WORKDIR, "00log/chromhmm_bin.log")
         params:
@@ -844,9 +860,9 @@ if config["chromHMM"]:
 
     rule chromHMM_learn:
         input:
-            expand(os.path.join(WORKDIR, "chromHMM/binarizedData/{sample}-{chr}-binary.txt"), sample = HISTONE_SAMPLE, chr = CHRHMM)
+            expand(os.path.join(WORKDIR, "chromHMM/binarizedData/{sample}-{chr}-binary.txt"), sample = SAMPLE_FOR_CHROMHMM, chr = CHRHMM)
         output: 
-            expand(os.path.join(WORKDIR, "chromHMM/learn_{nb_state}_states/{sample}_{nb_state}_segments.bed"), sample = HISTONE_SAMPLE, nb_state = config["state"])
+            expand(os.path.join(WORKDIR, "chromHMM/learn_{nb_state}_states/{sample}_{nb_state}_segments.bed"), sample = SAMPLE_FOR_CHROMHMM, nb_state = config["state"])
         log: os.path.join(WORKDIR, "00log/chromhmm_learn.log")
         params:
             input_folder = os.path.join(WORKDIR, "chromHMM/binarizedData/"), 
@@ -855,5 +871,6 @@ if config["chromHMM"]:
         shell:
             """
             source activate full-pipe-main-env
-            unset DISPLAY && ChromHMM.sh -Xmx{params.memory} LearnModel -p 0 -b {config[binsize]} {params.input_folder} {params.output_folder} {config[state]} {config[chromHmm_g]} 2> {log}
+            unset DISPLAY && ChromHMM.sh -Xmx{params.memory} LearnModel -p 0 -b {config[binsize]} \
+            {params.input_folder} {params.output_folder} {config[state]} {config[chromHmm_g]} 2> {log}
             """

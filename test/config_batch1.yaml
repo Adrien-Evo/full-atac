@@ -58,6 +58,10 @@ chromHmm_g : /sandbox/users/foucal-a/genome_size_GRCh37.75_canonical_CHR.txt
 ## space delimited. entries should be from the third column of the meta.txt file fed
 ## into the samples2json.py file.
 
-histone_for_chromHMM: "H3K4me1 H3K4me3 H3K27ac H3K27me3"
+histone_for_chromHMM:
+  - H3K4me1
+  - H3K4me3
+  - H3K27ac
+  - H3K27me3
 
 
