@@ -241,15 +241,24 @@ ALL_DPQC.extend(expand(os.path.join(WORKDIR, "DPQC/{samp}.plotFingerprintOutQual
 # ~~~~~~~~~~~ ChromHMM specific ~~~~~~~~~~~ #
 if config["chromHMM"]:
 
+    def get_canonical_chromSize(genomeSize):
+        with open(genomeSize, 'r') as fi:
+            size = [line for line in fi if not re.search('\.|_', line)]
+
+        output_file_name = "data/canonical_genome_size_for_chromHMM"
+        with open(output_file_name, 'w') as fo:
+            for item in size:
+                fo.write("%s" % item)
+        return(output_file_name)
+
     #Predicting all output files for chromHMM using all canonical chr in the genome file.
     def get_chr(chromSize):
         with open(chromSize, 'r') as fs:
             chr = [line.rstrip().split('\t')[0] for line in fs]
-            chr = [a for a in chr if not re.search('\.', a)]
-            chr = [a for a in chr if not re.search('_', a)]
-            return(chr)
+        return(chr)
     
-    CHRHMM = get_chr(GENOME_SIZE)
+    CHRHMM_GENOME_SIZE = get_canonical_chromSize(GENOME_SIZE)
+    CHRHMM = get_chr(CHRHMM_GENOME_SIZE)
     # Read histone
     HISTONE_INCLUDED = config["histone_for_chromHMM"]
     HISTONE_FOR_CHROMHMM = [histone for histone in MARKS if histone in HISTONE_INCLUDED ]
@@ -726,9 +735,10 @@ rule get_bigbeds:
     input: get_peaks
     output: os.path.join(WORKDIR, "12UCSC/{case}-vs-{control}-macs2_peaks.bb")
     params : 
-        bed1 = temp(os.path.join(WORKDIR, "12UCSC_broad/{case}-vs-{control}-macs2_peaks.bed"))
+        bed1 = temp(os.path.join(WORKDIR, "12UCSC/{case}-vs-{control}-macs2_peaks_temp.bed"))
     shell:
         """
+        source activate full-pipe-main-env
         cut -f1,2,3 {input} | LC_COLLATE=C sort -k1,1 -k2,2n > {params.bed1}
         scripts/bedToBigBed {params.bed1} {GENOME_SIZE} {output} -type=bed3
         """
@@ -838,15 +848,15 @@ if config["chromHMM"]:
                     for sample in MARKS[histone]:
                         control = CONTROL_SAMPLE_DICT[sample]
                         case_bed = sample + "_"+ histone + ".bed"
-                    if os.path.exists(join(os.path.join(WORKDIR, "bamtobed"), case_bed)):
-                        f.write(sample + "\t" +  histone + "\t" + case_bed + "\t" + control + ".bed" + "\n")
+                        if os.path.exists(join(os.path.join(WORKDIR, "bamtobed"), case_bed)):
+                            f.write(sample + "\t" +  histone + "\t" + case_bed + "\t" + control + ".bed" + "\n")
     
     rule chromHMM_binarize:
         input :
             cellmarkfiletable = os.path.join(WORKDIR, "chromHMM/cellmarkfiletable.txt"), 
             beds = expand(os.path.join(WORKDIR, "bamtobed/{sample}.bed"), sample = SAMPLE_MARK_FOR_CHROMHMM + CONTROLS)
         output:
-            expand(os.path.join(WORKDIR, "chromHMM/binarizedData/{sample}-{chr}-binary.txt"), sample = SAMPLE_FOR_CHROMHMM, chr = CHRHMM)
+            expand(os.path.join(WORKDIR, "chromHMM/binarizedData/{sample}_{chr}_binary.txt"), sample = SAMPLE_FOR_CHROMHMM, chr = CHRHMM)
         log:
             os.path.join(WORKDIR, "00log/chromhmm_bin.log")
         params:
@@ -856,12 +866,12 @@ if config["chromHMM"]:
         shell:
             """
             source activate full-pipe-main-env
-            ChromHMM.sh -Xmx{params.memory} BinarizeBed -b {config[binsize]} {config[chromHmm_g]} {params.bamtobed_folder} {input.cellmarkfiletable} {params.folder} 2> {log}
+            ChromHMM.sh -Xmx{params.memory} BinarizeBed -b {config[binsize]} {CHRHMM_GENOME_SIZE} {params.bamtobed_folder} {input.cellmarkfiletable} {params.folder} 2> {log}
             """
 
     rule chromHMM_learn:
         input:
-            expand(os.path.join(WORKDIR, "chromHMM/binarizedData/{sample}-{chr}-binary.txt"), sample = SAMPLE_FOR_CHROMHMM, chr = CHRHMM)
+            expand(os.path.join(WORKDIR, "chromHMM/binarizedData/{sample}_{chr}_binary.txt"), sample = SAMPLE_FOR_CHROMHMM, chr = CHRHMM)
         output: 
             expand(os.path.join(WORKDIR, "chromHMM/learn_{nb_state}_states/{sample}_{nb_state}_segments.bed"), sample = SAMPLE_FOR_CHROMHMM, nb_state = config["state"])
         log: os.path.join(WORKDIR, "00log/chromhmm_learn.log")
@@ -873,5 +883,5 @@ if config["chromHMM"]:
             """
             source activate full-pipe-main-env
             unset DISPLAY && ChromHMM.sh -Xmx{params.memory} LearnModel -p 0 -b {config[binsize]} \
-            {params.input_folder} {params.output_folder} {config[state]} {config[chromHmm_g]} 2> {log}
+            {params.input_folder} {params.output_folder} {config[state]} {CHRHMM_GENOME_SIZE} 2> {log}
             """

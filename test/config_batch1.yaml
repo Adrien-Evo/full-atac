@@ -50,7 +50,7 @@ chromHMM: True
 # ---- chromHMM bin size -----
 binsize: 200
 # ---- Number of states -----
-state: 4
+state: 8
 
 
 ## histone marks that you want to include in the chromHMM model
