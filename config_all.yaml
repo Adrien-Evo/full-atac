@@ -46,7 +46,7 @@ narrow_broad: './config/broad_narrow_histone_TF.yaml'
 
 # ~~~~~~~~~~~~~~~~ ChromHMM ~~~~~~~~~~~~~~~~~
 # - run chromHMM or not --- chromHMM: True  || chromHMM: False
-chromHMM: False
+chromHMM: True
 # ---- chromHMM bin size -----
 binsize: 200
 # ---- Number of states -----

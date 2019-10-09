@@ -67,7 +67,8 @@ for samp in SAMPLE_MARK:
 
 #Checking if control has been found:
 if not bool(controlFile):
-    
+    logger.warning("Can't file any controls/input named " + CONTROL_NAME + ". Exiting")
+    exit()
 # Finding duplicate values from controlFile by flipping it 
 controlFileFlipped = {} 
   
@@ -105,7 +106,6 @@ for case in CASES:
     CASES_SAMPLE_FILES[case] = FILES[sample][mark]
 
 ALL_SAMPLE_FILES = {**CASES_SAMPLE_FILES, **CONTROL_MERGED_FILES}
-print(CONTROL_MERGED_FILES)
 CONTROLS = list(CONTROL_MERGED_FILES.keys())
 
 # ~~~~~~~~~~~~~~ All samples ~~~~~~~~~~~~~~ #
@@ -138,7 +138,6 @@ for sample in sorted(FILES.keys()):
     for mark in FILES[sample].keys():
         if(mark not in CONTROL_NAME):
             SAMPLES_COMPLETE_NAME.setdefault(sample, []).append(sample + "_" + mark)
-print("SAMPLES_COMPLETE_NAME     ", SAMPLES_COMPLETE_NAME)
 
 # Adding the proper merged input to the marks of each samples
 for key in SAMPLES_COMPLETE_NAME.keys():
@@ -177,8 +176,7 @@ for key, value in CONTROL_SAMPLE_DICT.items():
 
 ###Checking
 # print("SAMPLES     ",SAMPLES)
-
-print("SAMPLES_COMPLETE_NAME     ", SAMPLES_COMPLETE_NAME)
+# print("SAMPLES_COMPLETE_NAME     ", SAMPLES_COMPLETE_NAME)
 # print("MARKS     ", MARKS)
 # print("MARKS_NO_CONTROL     ", MARKS_NO_CONTROL)
 # print("MARKS_COMPLETE_NAME     ", MARKS_COMPLETE_NAME)
@@ -336,7 +334,6 @@ def get_big_wig_with_mark_or_tf(wildcards):
 # ~~~~~ Aggregation of bams per sample ~~~~ #
 def get_bams_per_sample(wildcards):
     marks = SAMPLES_COMPLETE_NAME[wildcards.samp]
-    print(marks)
     bams = list()
     for s in marks:
         bams.append(os.path.join(WORKDIR, "03aln/" + s + ".sorted.bam"))
@@ -391,7 +388,7 @@ if BAM_INPUT == False:
     #Now only for single-end ChIPseq
     rule merge_fastqs:
         input: get_fastq
-        output: os.path.join(WORKDIR, "01seq/{sample}.fastq")
+        output: temp(os.path.join(WORKDIR, "01seq/{sample}.fastq"))
         log: os.path.join(WORKDIR, "00log/{sample}.unzip")
         params: jobname = "{sample}"
         shell: "gunzip -c {input} > {output} 2> {log}"
@@ -400,7 +397,7 @@ if BAM_INPUT == False:
     # Simple alignment with bowtie 2 followed by sorting #
     rule align:
         input:  os.path.join(WORKDIR, "01seq/{sample}.fastq")
-        output: os.path.join(WORKDIR, "03aln/{sample}.temp.bam")
+        output: temp(os.path.join(WORKDIR, "03aln/{sample}.bam"))
         log:    os.path.join(WORKDIR, "00log/{sample}.align")
         shell:
             """
@@ -414,7 +411,7 @@ if BAM_INPUT == False:
     # Get the duplicates marked sorted bam, remove unmapped reads by samtools view -F 1804 #
     # Samblaster should run before samtools sort #
     rule filter_alignment:
-        input:  os.path.join(WORKDIR, "03aln/{sample}.temp.bam")
+        input:  os.path.join(WORKDIR, "03aln/{sample}.bam")
         output: os.path.join(WORKDIR, "03aln/{sample}.sorted.bam")
         log:    os.path.join(WORKDIR, "00log/{sample}.filter")
         shell:
@@ -523,7 +520,7 @@ rule down_sample:
 if BAM_INPUT == False:
     rule encode_complexity:
         input: 
-            bam = os.path.join(WORKDIR, "03aln/{sample}.temp.bam") 
+            bam = os.path.join(WORKDIR, "03aln/{sample}.bam") 
         output: 
             os.path.join(WORKDIR, "DPQC/{sample}.encodeQC.txt")
         threads: 4
@@ -545,7 +542,7 @@ if BAM_INPUT == False:
             source activate full-pipe-main-env
             fastqc -o {params.output_dir} -f fastq --noextract {input} 2> {log}
             """
-            
+
 # Phantompeakqualtools computes a robust fragment length using the cross correlation (xcor) metrics.
 rule phantom_peak_qual:
     input: 
