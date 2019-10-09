@@ -56,43 +56,45 @@ CASES = [sample for sample in SAMPLE_MARK if CONTROL_NAME not in sample]
 # ======================================================== #
 
 
-#  Create a dictionary linking each sample with their control fastq e.g. { Mousekidney01 : controlIG16_TCGCTAGA_L001_R1_002.fastq.gz 16_TCGCTAGA_L001_R1_001.fastq.gz}  #
+#  Create a dictionary linking each sample with their control fastq or bam e.g. { Mousekidney01 : controlIG16_TCGCTAGA_L001_R1_002.fastq.gz 16_TCGCTAGA_L001_R1_001.fastq.gz}  #
 # Joining the list to allow for usage as a dictionary key
-controlFastq = dict()
+controlFile = dict()
 for samp in SAMPLE_MARK:
     if CONTROL_NAME in samp:
         sample = "".join(samp.split("_")[0:-1])
         mark = samp.split("_")[-1]
-        controlFastq[sample] = " ".join(FILES[sample][mark])
- 
-# Finding duplicate values from controlFastq by flipping it 
-controlFastqFlipped = {} 
+        controlFile[sample] = "".join(FILES[sample][mark])
+
+#Checking if control has been found:
+if not bool(controlFile):
+    
+# Finding duplicate values from controlFile by flipping it 
+controlFileFlipped = {} 
   
-for key, value in controlFastq.items():
-    if value not in controlFastqFlipped: 
-        controlFastqFlipped[value] = [key] 
+for key, value in controlFile.items():
+    if value not in controlFileFlipped: 
+        controlFileFlipped[value] = [key] 
     else: 
-        controlFastqFlipped[value].append(key) 
-  
-# controlFastqFlipped dict now is of length the number of unique controls, with the samples using those controls as values
+        controlFileFlipped[value].append(key) 
+
+# controlFileFlipped dict now is of length the number of unique controls, with the samples using those controls as values
 
 # mergedInputDit allows to create a generic name for the Inputs ( Input1, Input2 etc etc)
-mergedInputDict = controlFastqFlipped
+mergedInputDict = controlFileFlipped
 i = 1
-for key, value in controlFastqFlipped.items():
+for key, value in controlFileFlipped.items():
     inputname = "Input" + str(i)
     mergedInputDict[key] = inputname
     i = i + 1
 
 # Now creating CONTROL_SAMPLE_DICT,  linking sample with their unique Input using the generic input name e.g. {Mousekidney: Input1}
 CONTROL_SAMPLE_DICT = {}
-for key, value in controlFastq.items():
+for key, value in controlFile.items():
     CONTROL_SAMPLE_DICT[key] = mergedInputDict[value]
-
 
 # Flipping the flipped dictionary to have a link between generic input name and their corresponding fastq/Bam files. Splitting back the file name
 CONTROL_MERGED_FILES = {}
-for key, value in controlFastqFlipped.items():
+for key, value in controlFileFlipped.items():
     CONTROL_MERGED_FILES[value] = key.split(" ")
 
 # Creating the dictionnary for all sample name linked to their input file
@@ -103,7 +105,7 @@ for case in CASES:
     CASES_SAMPLE_FILES[case] = FILES[sample][mark]
 
 ALL_SAMPLE_FILES = {**CASES_SAMPLE_FILES, **CONTROL_MERGED_FILES}
-
+print(CONTROL_MERGED_FILES)
 CONTROLS = list(CONTROL_MERGED_FILES.keys())
 
 # ~~~~~~~~~~~~~~ All samples ~~~~~~~~~~~~~~ #
@@ -136,6 +138,7 @@ for sample in sorted(FILES.keys()):
     for mark in FILES[sample].keys():
         if(mark not in CONTROL_NAME):
             SAMPLES_COMPLETE_NAME.setdefault(sample, []).append(sample + "_" + mark)
+print("SAMPLES_COMPLETE_NAME     ", SAMPLES_COMPLETE_NAME)
 
 # Adding the proper merged input to the marks of each samples
 for key in SAMPLES_COMPLETE_NAME.keys():
@@ -174,7 +177,8 @@ for key, value in CONTROL_SAMPLE_DICT.items():
 
 ###Checking
 # print("SAMPLES     ",SAMPLES)
-# print("SAMPLES_COMPLETE_NAME     ", SAMPLES_COMPLETE_NAME)
+
+print("SAMPLES_COMPLETE_NAME     ", SAMPLES_COMPLETE_NAME)
 # print("MARKS     ", MARKS)
 # print("MARKS_NO_CONTROL     ", MARKS_NO_CONTROL)
 # print("MARKS_COMPLETE_NAME     ", MARKS_COMPLETE_NAME)
@@ -289,10 +293,10 @@ ALL_HUB = [os.path.join(HUB_FOLDER,"{}.hub.txt").format(PROJECT_NAME)]
 # ======================================================== #
 
 # Depends on bam or fastq as input #
-if not BAM_INPUT:
-    ALL_MULTIQC_INPUT = ALL_PHANTOM + ALL_DPQC + ALL_FEATURECOUNTS + ALL_BROADPEAKCOUNTS + ALL_NARROWPEAKCOUNTS + ALL_ENCODE + ALL_FASTQC + ALL_BOWTIE_LOG 
+if BAM_INPUT:
+    ALL_MULTIQC_INPUT = ALL_PHANTOM + ALL_DPQC + ALL_FEATURECOUNTS + ALL_BROADPEAKCOUNTS + ALL_NARROWPEAKCOUNTS
 else:
-    ALL_MULTIQC_INPUT = ALL_PHANTOM + ALL_DPQC + ALL_FEATURECOUNTS + ALL_ENCODE + ALL_BROADPEAKCOUNTS + ALL_NARROWPEAKCOUNTS
+    ALL_MULTIQC_INPUT = ALL_PHANTOM + ALL_DPQC + ALL_FEATURECOUNTS + ALL_BROADPEAKCOUNTS + ALL_NARROWPEAKCOUNTS + ALL_ENCODE + ALL_FASTQC + ALL_BOWTIE_LOG
 
 ###########################################################################
 ########################### Targets for rule all ##########################
@@ -332,6 +336,7 @@ def get_big_wig_with_mark_or_tf(wildcards):
 # ~~~~~ Aggregation of bams per sample ~~~~ #
 def get_bams_per_sample(wildcards):
     marks = SAMPLES_COMPLETE_NAME[wildcards.samp]
+    print(marks)
     bams = list()
     for s in marks:
         bams.append(os.path.join(WORKDIR, "03aln/" + s + ".sorted.bam"))
@@ -391,17 +396,6 @@ if BAM_INPUT == False:
         params: jobname = "{sample}"
         shell: "gunzip -c {input} > {output} 2> {log}"
 
-    rule fastqc:
-        input:  os.path.join(WORKDIR, "01seq/{sample}.fastq")
-        output: os.path.join(WORKDIR, "02fqc/{sample}_fastqc.zip"), os.path.join(WORKDIR, "02fqc/{sample}_fastqc.html")
-        log:    os.path.join(WORKDIR, "00log/{sample}.fastqc")
-        params:
-            output_dir = os.path.join(WORKDIR, "02fqc")
-        shell:
-            """
-            source activate full-pipe-main-env
-            fastqc -o {params.output_dir} -f fastq --noextract {input} 2> {log}
-            """
 
     # Simple alignment with bowtie 2 followed by sorting #
     rule align:
@@ -526,20 +520,32 @@ rule down_sample:
 ###########################################################################
 
 #Library complexity
-rule encode_complexity:
-    input: 
-        bam = os.path.join(WORKDIR, "03aln/{sample}.temp.bam") 
-    output: 
-        os.path.join(WORKDIR, "DPQC/{sample}.encodeQC.txt")
-    threads: 4
-    shell:
-        """
-        source activate full-pipe-main-env
-        bedtools bamtobed -i {input} | awk 'BEGIN{{OFS="\t"}}{{print $1,$2,$3,$6}}' | grep -v 'chrM' | sort | uniq -c \
-        | awk 'BEGIN{{mt=0;m0=0;m1=0;m2=0;OFS="\t"}} ($1==1){{m1=m1+1}} ($1==2){{m2=m2+1}} {{m0=m0+1}} {{mt=mt+$1}} \
-        END{{m1_m2=-1.0; if(m2>0) m1_m2=m1/m2; print "Sample Name","NRF","PBC1","PBC2"; print "{wildcards.sample}",m0/mt,m1/m0,m1_m2}}' > {output}
-        """
-
+if BAM_INPUT == False:
+    rule encode_complexity:
+        input: 
+            bam = os.path.join(WORKDIR, "03aln/{sample}.temp.bam") 
+        output: 
+            os.path.join(WORKDIR, "DPQC/{sample}.encodeQC.txt")
+        threads: 4
+        shell:
+            """
+            source activate full-pipe-main-env
+            bedtools bamtobed -i {input} | awk 'BEGIN{{OFS="\t"}}{{print $1,$2,$3,$6}}' | grep -v 'chrM' | sort | uniq -c \
+            | awk 'BEGIN{{mt=0;m0=0;m1=0;m2=0;OFS="\t"}} ($1==1){{m1=m1+1}} ($1==2){{m2=m2+1}} {{m0=m0+1}} {{mt=mt+$1}} \
+            END{{m1_m2=-1.0; if(m2>0) m1_m2=m1/m2; print "Sample Name","NRF","PBC1","PBC2"; print "{wildcards.sample}",m0/mt,m1/m0,m1_m2}}' > {output}
+            """
+    rule fastqc:
+        input:  os.path.join(WORKDIR, "01seq/{sample}.fastq")
+        output: os.path.join(WORKDIR, "02fqc/{sample}_fastqc.zip"), os.path.join(WORKDIR, "02fqc/{sample}_fastqc.html")
+        log:    os.path.join(WORKDIR, "00log/{sample}.fastqc")
+        params:
+            output_dir = os.path.join(WORKDIR, "02fqc")
+        shell:
+            """
+            source activate full-pipe-main-env
+            fastqc -o {params.output_dir} -f fastq --noextract {input} 2> {log}
+            """
+            
 # Phantompeakqualtools computes a robust fragment length using the cross correlation (xcor) metrics.
 rule phantom_peak_qual:
     input: 
@@ -685,7 +691,7 @@ rule call_broad_peaks_macs2:
         ## for macs2, when nomodel is set, --extsize is default to 200bp, this is the same as 2 * shift-size in macs14.
         macs2 callpeak -t {input.case} \
             -c {input.control} --keep-dup all -f BAM -g {config[macs2_g]} \
-            --outdir {params.outdir} -n {params.name} --extsize `cut -f3 {input.spp} | awk 'BEGIN{{FS=","}}{{print $1}}'` -p {config[macs2_pvalue]} --broad --broad-cutoff {config[macs2_pvalue_broad]} --nomodel &> {log}
+            --outdir {params.outdir} -n {params.name} --extsize `cut -f3 {input.spp} | awk 'BEGIN{{FS=","}}{{print $1}}'` -p {config[macs2_pvalue]} --broad --broad-cutoff {config[macs2_pvalue_broad_cutoff]} --nomodel &> {log}
         """
 
 

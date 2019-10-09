@@ -1,12 +1,37 @@
-PROJECT_NAME: 'test'
-idx_bt1: '/sandbox/resources/species/human/ensembl/release-75/index-bowtie-2.3.0/Homo_sapiens.GRCh37.75.dna.toplevel'
+PROJECT_NAME: 'Barc-Chip-Seq'
+
 
 # Path to a JSON file with samples and their corresponding FASTQ files.
-SAMPLES: './meta.txt'
-SAMPLES_JSON: './samples_w_input.json'
-CLUSTER_JSON: './cluster.json'
-OUTPUT_DIR: './out'
-bam: False
+SAMPLES_JSON: './bams.json'
+OUTPUT_DIR: './chip-Seq-good-samples'
+
+# Name of your input
+control: 'Input'
+
+bam: True
+
+#####################################################
+##########  Genome data #############################
+#####################################################
+
+# - Index for bowtie2
+idx_bt2: '/sandbox/resources/species/human/ensembl/release-75/index-bowtie-2.3.0/Homo_sapiens.GRCh37.75.dna.toplevel'
+
+# - genome fasta
+genome_fasta: '/sandbox/resources/species/human/ensembl/release-75/Homo_sapiens.GRCh37.75.dna.toplevel.fa'
+
+# - your genome  :
+genome_size: '/sandbox/resources/species/human/ensembl/release-75/index-bowtie-2.3.0/Homo_sapiens.GRCh37.75.dna.toplevel.fa.fai'
+
+# - genome annotation gtf file :
+genome_gtf: 'data/homo_sapiens/Homo_sapiens.GRCh37.87.gtf'
+
+# - TSS file for QC
+genome_tss: 'data/GRCh37_TSS.bed'
+
+
+# - Downsampling. Set the number of reads for downsampling
+target_reads: 30000000
 
 
 # MACS parameters for peak calling
@@ -14,33 +39,28 @@ macs_g: hs
 macs_pvalue: 1e-5
 macs2_g: hs
 macs2_pvalue: 1e-5
-macs2_pvalue_broad: 1e-5
+macs2_pvalue_broad_cutoff: 1e-5
 
-# Name of your input
-control: 'Input'
-
-
-#number of reads downsample to, I set to 50 million, if reads number smaller than
-## 50 million, downsample will keep the orignal reads
-target_reads: 30000000
-
-##TSS file for QC
-tss_bed: 'hg19TSSUCSCGene.bed'
+# config file for narrow or broad peak calling for all
+narrow_broad: './config/broad_narrow_histone_TF.yaml'
 
 # ~~~~~~~~~~~~~~~~ ChromHMM ~~~~~~~~~~~~~~~~~
-# - run chromHMM or not ---
+# - run chromHMM or not --- chromHMM: True  || chromHMM: False
 chromHMM: False
 # ---- chromHMM bin size -----
 binsize: 200
 # ---- Number of states -----
-state: 4
-# ----- chromHMM genome ------
-chromHmm_g : /sandbox/users/foucal-a/genome_size_GRCh37.75_canonical_CHR.txt
+state: 9
+
 
 ## histone marks that you want to include in the chromHMM model
 ## space delimited. entries should be from the third column of the meta.txt file fed
 ## into the samples2json.py file.
 
-histone_for_chromHMM: "H3K4me1 H3K4me3 H3K27 H3K27me3"
+histone_for_chromHMM:
+  - H3K4me1
+  - H3K4me3
+  - H3K27ac
+  - H3K27me3
 
 
