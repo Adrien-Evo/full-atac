@@ -27,7 +27,14 @@ genome_size: '/sandbox/resources/species/human/ensembl/release-75/index-bowtie-2
 genome_gtf: 'data/homo_sapiens/Homo_sapiens.GRCh37.87.gtf'
 
 # - TSS file for QC
-genome_tss: 'data/GRCh37_TSS.bed'
+genome_tss: 'data/GRCh37_TSS_TES.bed'
+
+#####################################################
+##########  Alignment #############################
+#####################################################
+
+# - Alignment quality threshold
+MQ: 30
 
 
 # - Downsampling. Set the number of reads for downsampling
@@ -39,14 +46,14 @@ macs_g: hs
 macs_pvalue: 1e-5
 macs2_g: hs
 macs2_pvalue: 1e-5
-macs2_pvalue_broad: 1e-5
+macs2_pvalue_broad_cutoff: 1e-5
 
 # config file for narrow or broad peak calling for all
 narrow_broad: './config/broad_narrow_histone_TF.yaml'
 
 # ~~~~~~~~~~~~~~~~ ChromHMM ~~~~~~~~~~~~~~~~~
 # - run chromHMM or not --- chromHMM: True  || chromHMM: False
-chromHMM: True
+chromHMM: False
 # ---- chromHMM bin size -----
 binsize: 200
 # ---- Number of states -----
