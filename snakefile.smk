@@ -236,10 +236,12 @@ ALL_ENCODE = expand(os.path.join(WORKDIR, "QC/{sample}.encodeQC.txt"), sample = 
 # ---- Grouped by marks ---- #
 ALL_COMPUTEMATRIX = expand(os.path.join(WORKDIR, "QC/{mark}.computeMatrix.gz"), mark = MARKS)
 ALL_DPQC_PLOT = expand(os.path.join(WORKDIR, "QC/plots/{mark}.plotHeatmap.png"), mark = MARKS)
+ALL_DPQC = expand(os.path.join(WORKDIR, "QC/{mark}.plotProfileOutFileNameData.txt"), mark = MARKS)
+
 
 # --- Grouped by samples --- #
 ALL_DPQC_PLOT.extend(expand(os.path.join(WORKDIR, "QC/plots/{samp}.fingerprint.png"), samp = SAMPLES))
-ALL_DPQC = expand(os.path.join(WORKDIR, "QC/{samp}.plotFingerprintOutRawCounts.txt"), samp = SAMPLES)
+ALL_DPQC.extend(expand(os.path.join(WORKDIR, "QC/{samp}.plotFingerprintOutRawCounts.txt"), samp = SAMPLES))
 ALL_DPQC.extend(expand(os.path.join(WORKDIR, "QC/{samp}.plotFingerprintOutQualityMetrics.txt"), samp = SAMPLES))
 
 # ~~~~~~~~~~~ ChromHMM specific ~~~~~~~~~~~ #
@@ -581,6 +583,18 @@ rule plotHeatmap:
         plotHeatmap -m {input} -out {output} --colorMap jet
         """
 
+# Deeptools QC
+rule plotProfile:
+    input :  os.path.join(WORKDIR, "QC/{mark}.computeMatrix.gz")
+    output : 
+        plot = os.path.join(WORKDIR, "QC/plots/{mark}.plotProfile.png"),
+        outFileNameData =  os.path.join(WORKDIR, "QC/{mark}.plotProfileOutFileNameData.txt")
+    shell:
+        """
+        source activate full-pipe-main-env
+        plotProfile -m {input} -out {output.plot} --outFileNameData {output.outFileNameData}
+        """
+
 # ChipSeq QCs plots from deeptools. Plotfingerprints are really usefull to see focal enrichment of your Chip-Seq enrichment
 rule plotFingerPrint:
     input:
@@ -597,6 +611,8 @@ rule plotFingerPrint:
         source activate full-pipe-main-env
         plotFingerprint -b {input.bam} --plotFile {output.plot} --labels {params.labels} --region chr1 --skipZeros --numberOfSamples 100000 --minMappingQuality {config[MQ]} --plotTitle {wildcards.samp} --outRawCounts {output.rawCounts} --outQualityMetrics {output.qualityMetrics}
         """
+
+
 
 rule get_FRiP_for_multiqc:
     input:

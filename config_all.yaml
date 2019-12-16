@@ -29,6 +29,13 @@ genome_gtf: 'data/homo_sapiens/Homo_sapiens.GRCh37.87.gtf'
 # - TSS file for QC
 genome_tss: 'data/GRCh37_TSS.bed'
 
+#####################################################
+##########  Alignment #############################
+#####################################################
+
+# - Alignment quality threshold
+MQ: 30
+
 
 # - Downsampling. Set the number of reads for downsampling
 target_reads: 30000000

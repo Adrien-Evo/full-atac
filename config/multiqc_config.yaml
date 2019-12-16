@@ -16,7 +16,6 @@ module_order:
     - bowtie2
     - fastqc
 
-
 custom_data:
     encode_metrics:
         plot_type: 'generalstats'
