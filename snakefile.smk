@@ -570,7 +570,7 @@ rule computeMatrix_QC:
     shell:
         """
         source activate full-pipe-main-env
-	    computeMatrix scale-regions -S {input} -R {params} -a 2000 -b 2000 -out {output} --numberOfProcessors max/2
+	    computeMatrix reference-point -S {input} -R {params} -a 2000 -b 2000 -out {output} --numberOfProcessors max/2
         """
 
 # Deeptools QC
@@ -592,7 +592,7 @@ rule plotProfile:
     shell:
         """
         source activate full-pipe-main-env
-        plotProfile -m {input} -out {output.plot} --outFileNameData {output.outFileNameData}
+        plotProfile -m {input} -out {output.plot} --outFileNameData {output.outFileNameData} --refPointLabel TSS
         """
 
 # ChipSeq QCs plots from deeptools. Plotfingerprints are really usefull to see focal enrichment of your Chip-Seq enrichment
