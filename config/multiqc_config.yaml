@@ -6,6 +6,7 @@ report_header_info:
     - Contact E-mail: 'adrien.foucal@gmail.com'
     - Pipeline Type: 'ChIP-seq'
 
+
 module_order:
     - MACS2_broadPeak_count
     - MACS2_narrowPeak_count
@@ -15,6 +16,11 @@ module_order:
     - deepTools
     - bowtie2
     - fastqc
+
+
+
+section_comments:
+    read_distribution_profile_plot: 'Accumulated view of the distribution of sequence reads around TSS.'
 
 custom_data:
     encode_metrics:
