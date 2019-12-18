@@ -48,15 +48,19 @@ A slew of variables are produced by the pipeline to help you assess the quality 
 ## ENCODE metrics
 
 They are summarized [here](https://www.encodeproject.org/data-standards/terms/)
-The ENCODE consortium published guidelines in the following [paper](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3431496/). This is a must read for anyone processing ChIP-Seq data. 
+The ENCODE consortium published guidelines in the following [paper](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3431496/). This is a must read for anyone processing ChIP-Seq data. Here I quickly explain ENCODE metrics: 
 
 * **Non-Redundant Fraction (NRF)** : 
 
-	$\frac{\text{Number of distinct uniquely mapping reads (i.e. after removing duplicates)}}{\text{Total number of reads}}$
+	$`NRF=\frac{\text{Nunique}}{\text{Ntotal}}`$
+    
+    where:
+     * Nunique: Number of distinct uniquely mapping reads (i.e. after removing duplicates)
+     * Ntotal: Total number of reads
 	
 * **PCR Bottlenecking Coefficient 1 (PBC1)**: 
      
-	 $PBC1=\frac{M1}{MDISTINCT}$
+	 $`PBC1=\frac{M1}{MDISTINCT}`$
      
      where:
      * M1: the number of genomic locations where exactly one read maps uniquely
@@ -64,7 +68,7 @@ The ENCODE consortium published guidelines in the following [paper](https://www.
 
 * **PCR Bottlenecking Coefficient 1 (PBC2)**:
 
-	$PBC2=\frac{M1}{M2}$ 
+	$`PBC2=\frac{M1}{M2}`$ 
 
 	where:
     * M1: number of genomic locations where only one read maps uniquely
@@ -93,7 +97,7 @@ Give you an indication of enrichment around TSS for your marks or TF. Produced b
  Computed by deeptools [plotFingerprint](https://deeptools.readthedocs.io/en/develop/content/tools/plotFingerprint.html). This helps you evaluate the focal enrichment of your mark or TF.
  
 #TODO
-Create a input meta file that is processed into a json. Can also integrate the narrow mars into the json too
+Create a input meta file that is processed into a json. Can also integrate the narrow marks into the json too
 Load UCSC HUB to check for it
 Verify that all files are commited and excluded
 Check for macs peak calling about the discovery of peaks with different p-value
