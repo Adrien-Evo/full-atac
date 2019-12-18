@@ -207,6 +207,7 @@ for case in CASES:
     if control in CONTROLS:
         ALL_PEAKS.append(os.path.join(WORKDIR, "peak_calling/macs1_narrow/{}-vs-{}-macs1-narrow_peaks.bed").format(case, control))
         ALL_PEAKS.append(os.path.join(WORKDIR, "peak_calling/macs2_broad/{}-vs-{}-macs2_peaks.broadPeak").format(case, control))
+        ALL_PEAKS.append(os.path.join(WORKDIR, "peak_calling/macs2_narrow/{}-vs-{}-macs2_peaks.narrowPeak").format(case, control))
         ALL_BIGWIG_INPUT.append(os.path.join(WORKDIR, "visualisation/bigwigs_with_control/{}-vs-{}.bw").format(case, control))
         ALL_BIGBED.append(os.path.join(WORKDIR, "visualisation/bigbeds/{}-vs-{}-macs2_peaks.bb").format(case, control))
         ALL_FEATURECOUNTS.append(os.path.join(WORKDIR, "QC/{}-vs-{}.FRiP.summary").format(case,control))
@@ -314,7 +315,7 @@ if not BAM_INPUT:
 
 #TEMP
 TARGETS.extend(ALL_DPQC_PLOT)
-
+TARGETS.extend(ALL_PEAKS)
 
 # ~~~~~~~~~~~~~~~~ ChromHMM ~~~~~~~~~~~~~~~ #
 if config["chromHMM"]:
@@ -706,6 +707,29 @@ rule call_broad_peaks_macs2:
         macs2 callpeak -t {input.case} \
             -c {input.control} --keep-dup all -f BAM -g {config[macs2_g]} \
             --outdir {params.outdir} -n {params.name} --extsize `cut -f3 {input.spp} | awk 'BEGIN{{FS=","}}{{print $1}}'` -p {config[macs2_pvalue]} --broad --broad-cutoff {config[macs2_pvalue_broad_cutoff]} --nomodel &> {log}
+        """
+
+# Peak calling using MACS 2
+rule call_narrow_peaks_macs2:
+    input: 
+        control = os.path.join(WORKDIR, "alignment/downsampling/{control}-downsample.sorted.bam"), 
+        case = os.path.join(WORKDIR, "alignment/downsampling/{case}-downsample.sorted.bam"),
+        spp = os.path.join(WORKDIR, "QC/phantompeakqualtools/{case}.spp.out")
+    output:
+        narrow = os.path.join(WORKDIR, "peak_calling/macs2_narrow/{case}-vs-{control}-macs2_peaks.narrowPeak")
+    log: os.path.join(WORKDIR, "logs/{case}-vs-{control}-call-narrowpeaks_macs2.log")
+    params:
+        name = "{case}-vs-{control}-macs2", 
+        jobname = "{case}", 
+        outdir = os.path.join(WORKDIR, "peak_calling/macs2_narrow")
+    message: "Calling broadpeaks with macs2."
+    shell:
+        """
+        source activate full-pipe-macs
+        ## for macs2, when nomodel is set, --extsize is default to 200bp, this is the same as 2 * shift-size in macs14.
+        macs2 callpeak -t {input.case} \
+            -c {input.control} --keep-dup all -f BAM -g {config[macs2_g]} \
+            --outdir {params.outdir} -n {params.name} --extsize `cut -f3 {input.spp} | awk 'BEGIN{{FS=","}}{{print $1}}'` -p {config[macs2_pvalue]} --nomodel &> {log}
         """
 
 

@@ -6,6 +6,10 @@ report_header_info:
     - Contact E-mail: 'adrien.foucal@gmail.com'
     - Pipeline Type: 'ChIP-seq'
 
+top_modules:
+    - fastqc_status_checks:
+        name: 'CHANGING THE NAME'
+        info: 'CHANGING INFO'
 
 module_order:
     - MACS2_broadPeak_count
@@ -13,10 +17,7 @@ module_order:
     - featureCounts:
         name: 'FRiP'
         info: 'Fraction of reads in peaks (FRiP)'
-    - deepTools
     - bowtie2
-    - fastqc
-
 
 
 section_comments:
