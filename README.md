@@ -31,6 +31,15 @@ Those commands will clone the git directory, move into the folder and install a 
 * Conda environments
 * Genomic data (for *homo sapiens* only at the moment)
 
+
+##TEMP blacklist filtering
+
+Thread on why it's still best practise to remove blacklist regions
+https://www.biostars.org/p/184537/
+https://www.biostars.org/p/361297/
+
+https://github.com/Boyle-Lab/Blacklist/releases
+
 # QC variable
 
 A slew of variables are produced by the pipeline to help you assess the quality of your samples. They are summarized in the multiQC report.

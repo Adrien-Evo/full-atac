@@ -43,3 +43,9 @@ grep -v "#" ./data/Homo_sapiens.GRCh37.87.gtf | awk '($3=="gene")' \
 | grep -v "\." | grep -v "_" | grep -v "MT" | grep -v "X" | grep -v "Y" > ./data/GRCh37_TSS.bed
 
 
+
+echo -e "\e[95m Blacklist regions from ENCODE DCC\e[0m"
+curl -LJO https://github.com/Boyle-Lab/Blacklist/archive/v2.0.tar.gz
+tar -xvf Blacklist-2.0.tar.gz -C ./data
+gzip -d data/Blacklist-2.0/lists/*.bed.gz
+

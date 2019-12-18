@@ -29,12 +29,15 @@ genome_gtf: 'data/homo_sapiens/Homo_sapiens.GRCh37.87.gtf'
 # - TSS file for QC
 genome_tss: 'data/GRCh37_TSS.bed'
 
+# - Blacklist
+blacklist: 'data/Blacklist-2.0/lists/hg19-blacklist.v2.bed'
+
 #####################################################
 ##########  Alignment #############################
 #####################################################
 
 # - Alignment quality threshold
-MQ: 30
+MQ: 20
 
 
 # - Downsampling. Set the number of reads for downsampling
@@ -53,11 +56,11 @@ narrow_broad: './config/broad_narrow_histone_TF.yaml'
 
 # ~~~~~~~~~~~~~~~~ ChromHMM ~~~~~~~~~~~~~~~~~
 # - run chromHMM or not --- chromHMM: True  || chromHMM: False
-chromHMM: False
+chromHMM: TRUE
 # ---- chromHMM bin size -----
 binsize: 200
 # ---- Number of states -----
-state: 8
+state: 4
 
 
 ## histone marks that you want to include in the chromHMM model

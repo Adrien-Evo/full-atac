@@ -24,6 +24,7 @@ GENOME_FASTA = config['genome_fasta']
 GENOME_GTF = config['genome_gtf']
 GENOME_SIZE = config['genome_size']
 GENOME_TSS = config['genome_tss']
+BLACKLIST_DCC = config['blacklist']
 
 
 ###########################################################################
@@ -185,6 +186,29 @@ for key, value in CONTROL_SAMPLE_DICT.items():
 # print("SAMPLES_COMPLETE_NAME          ",SAMPLES_COMPLETE_NAME)
 
 ###########################################################################
+############################# Helper functions ############################
+###########################################################################
+
+# --- only canonical chr --- #
+def get_canonical_chromSize(genomeSize):
+    with open(genomeSize, 'r') as fi:
+        size = [line for line in fi if not re.search('\.|_', line)]
+
+    output_file_name = "data/canonical_genome_size"
+    with open(output_file_name, 'w') as fo:
+        for item in size:
+            fo.write("%s" % item)
+    return(output_file_name)
+
+# --- Getting all chr in a genome size file in a list. Usefull for chromHMM to predict how many files will be produced --- #
+def get_chr(chromSize):
+    with open(chromSize, 'r') as fs:
+        chr = [line.rstrip().split('\t')[0] for line in fs]
+    return(chr)
+
+CANONICAL_CHR = get_chr(get_canonical_chromSize(GENOME_SIZE))
+
+###########################################################################
 ########################### Listing OUTPUT FILES ##########################
 ###########################################################################
 
@@ -248,24 +272,10 @@ ALL_DPQC.extend(expand(os.path.join(WORKDIR, "QC/{samp}.plotFingerprintOutQualit
 # ~~~~~~~~~~~ ChromHMM specific ~~~~~~~~~~~ #
 if config["chromHMM"]:
 
-    def get_canonical_chromSize(genomeSize):
-        with open(genomeSize, 'r') as fi:
-            size = [line for line in fi if not re.search('\.|_', line)]
 
-        output_file_name = "data/canonical_genome_size_for_chromHMM"
-        with open(output_file_name, 'w') as fo:
-            for item in size:
-                fo.write("%s" % item)
-        return(output_file_name)
-
-    #Predicting all output files for chromHMM using all canonical chr in the genome file.
-    def get_chr(chromSize):
-        with open(chromSize, 'r') as fs:
-            chr = [line.rstrip().split('\t')[0] for line in fs]
-        return(chr)
     
-    CHRHMM_GENOME_SIZE = get_canonical_chromSize(GENOME_SIZE)
-    CHRHMM = get_chr(CHRHMM_GENOME_SIZE)
+    CANONICAL_GENOME_SIZE = get_canonical_chromSize(GENOME_SIZE)
+    CHR_FOR_CHROMHMM = get_chr(CANONICAL_GENOME_SIZE)
     # Read histone
     HISTONE_INCLUDED = config["histone_for_chromHMM"]
     HISTONE_FOR_CHROMHMM = [histone for histone in MARKS if histone in HISTONE_INCLUDED ]
@@ -377,6 +387,10 @@ def get_peaks(wildcards):
                 logger.warning("Marks or TF not in the {} for {}. Will work with narrow peaks".format(config['narrow_broad'],wildcards.case))
                 return os.path.join(WORKDIR, "peak_calling/macs1_narrow/" + wildcards.case + "-vs-" + wildcards.control + "-macs1-narrow_peaks.bed")
 
+###########################################################################
+################################# rule all ################################
+###########################################################################
+
 #TODO see if this is usefull
 localrules: all
 
@@ -408,7 +422,7 @@ if BAM_INPUT == False:
             source activate full-pipe-main-env
             bowtie2 -p 8 -x {config[idx_bt2]} -q {input} 2> {log} \
             | samblaster \
-            | samtools view -bu - \
+            | samtools view -bu `{CANONICAL_CHR}`\
             | samtools sort -m 8G -@ 4 -T {output}.tmp -o {output}
             """
 
@@ -421,7 +435,7 @@ if BAM_INPUT == False:
         shell:
             """
             source activate full-pipe-main-env
-            samtools view -bu -F 1804 {input} -q {config[MQ]} \
+            bedtools intersect -v -abam {input} -b {BLACKLIST_DCC} | samtools view -bu -F 1804 -q {config[MQ]} \
             | samtools sort -m 8G -@ 4 -T {output}.tmp -o {output} 2> {log}
             """
     
@@ -612,7 +626,6 @@ rule plotFingerPrint:
         source activate full-pipe-main-env
         plotFingerprint -b {input.bam} --plotFile {output.plot} --labels {params.labels} --region chr1 --skipZeros --numberOfSamples 100000 --minMappingQuality {config[MQ]} --plotTitle {wildcards.samp} --outRawCounts {output.rawCounts} --outQualityMetrics {output.qualityMetrics}
         """
-
 
 
 rule get_FRiP_for_multiqc:
@@ -900,7 +913,7 @@ if config["chromHMM"]:
             cellmarkfiletable = os.path.join(WORKDIR, "chromHMM/cellmarkfiletable.txt"), 
             beds = expand(os.path.join(WORKDIR, "bamtobed/{sample}.bed"), sample = SAMPLE_MARK_FOR_CHROMHMM + CONTROLS)
         output:
-            expand(os.path.join(WORKDIR, "chromHMM/binarizedData/{sample}_{chr}_binary.txt"), sample = SAMPLE_FOR_CHROMHMM, chr = CHRHMM)
+            expand(os.path.join(WORKDIR, "chromHMM/binarizedData/{sample}_{chr}_binary.txt"), sample = SAMPLE_FOR_CHROMHMM, chr = CHR_FOR_CHROMHMM)
         log:
             os.path.join(WORKDIR, "logs/chromhmm_bin.log")
         params:
@@ -910,12 +923,12 @@ if config["chromHMM"]:
         shell:
             """
             source activate full-pipe-main-env
-            ChromHMM.sh -Xmx{params.memory} BinarizeBed -b {config[binsize]} {CHRHMM_GENOME_SIZE} {params.bamtobed_folder} {input.cellmarkfiletable} {params.folder} 2> {log}
+            ChromHMM.sh -Xmx{params.memory} BinarizeBed -b {config[binsize]} {CANONICAL_GENOME_SIZE} {params.bamtobed_folder} {input.cellmarkfiletable} {params.folder} 2> {log}
             """
 
     rule chromHMM_learn:
         input:
-            expand(os.path.join(WORKDIR, "chromHMM/binarizedData/{sample}_{chr}_binary.txt"), sample = SAMPLE_FOR_CHROMHMM, chr = CHRHMM)
+            expand(os.path.join(WORKDIR, "chromHMM/binarizedData/{sample}_{chr}_binary.txt"), sample = SAMPLE_FOR_CHROMHMM, chr = CHR_FOR_CHROMHMM)
         output: 
             expand(os.path.join(WORKDIR, "chromHMM/learn_{nb_state}_states/{sample}_{nb_state}_segments.bed"), sample = SAMPLE_FOR_CHROMHMM, nb_state = config["state"])
         log: os.path.join(WORKDIR, "logs/chromhmm_learn.log")
@@ -927,5 +940,5 @@ if config["chromHMM"]:
             """
             source activate full-pipe-main-env
             unset DISPLAY && ChromHMM.sh -Xmx{params.memory} LearnModel -p 0 -b {config[binsize]} \
-            {params.input_folder} {params.output_folder} {config[state]} {CHRHMM_GENOME_SIZE} 2> {log}
+            {params.input_folder} {params.output_folder} {config[state]} {CANONICAL_GENOME_SIZE} 2> {log}
             """
