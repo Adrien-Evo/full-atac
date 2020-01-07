@@ -1,9 +1,9 @@
-PROJECT_NAME: 'test'
+PROJECT_NAME: 'GEO'
 
 
 # Path to a JSON file with samples and their corresponding FASTQ files.
-SAMPLES_JSON: './test/samples_input_test.json'
-OUTPUT_DIR: './test/outputtest'
+SAMPLES_JSON: './test/samplesGEO.json'
+OUTPUT_DIR: './test/GEOtest'
 
 # Name of your input
 control: 'Input'
@@ -56,7 +56,7 @@ narrow_broad: './config/broad_narrow_histone_TF.yaml'
 
 # ~~~~~~~~~~~~~~~~ ChromHMM ~~~~~~~~~~~~~~~~~
 # - run chromHMM or not --- chromHMM: True  || chromHMM: False
-chromHMM: TRUE
+chromHMM: False
 # ---- chromHMM bin size -----
 binsize: 200
 # ---- Number of states -----
