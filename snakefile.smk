@@ -502,7 +502,6 @@ rule flagstat_bam:
     log:    os.path.join(WORKDIR, "logs/{sample}.bam.flagstat")
     threads: 1
     params: jobname = "{sample}"
-    message: "flagstat_bam {input}: {threads} threads"
     shell:
         """
         source activate full-pipe-main-env
@@ -519,14 +518,14 @@ rule down_sample:
         bam = os.path.join(WORKDIR, "alignment/downsampling/{sample}-downsample.sorted.bam"), 
         bai = os.path.join(WORKDIR, "alignment/downsampling/{sample}-downsample.sorted.bam.bai")
     log: os.path.join(WORKDIR, "logs/{sample}.downsample.log")
-    threads: 5
+    threads: 4
     params: 
     log: os.path.join(WORKDIR, "logs/{sample}.phantompeakqual.log")
     message: "downsampling for {input}"
     shell:
         """
         source activate full-pipe-main-env
-        sambamba view -f bam -t 5 --subsampling-seed=3 -s `sed '5q;d' {input.flagstat} | cut -d" " -f1 | awk '{{ratio = {config[target_reads]}/$0}};{{if(ratio < 1 )print ratio; else print 1}}'` {input.bam} | samtools sort -m 2G -@ 5 -T {output.bam}.tmp > {output.bam} 2> {log}
+        sambamba view -f bam -t {threads} --subsampling-seed=3 -s `sed '5q;d' {input.flagstat} | cut -d" " -f1 | awk '{{ratio = {config[target_reads]}/$0}};{{if(ratio < 1 )print ratio; else print 1}}'` {input.bam} | samtools sort -m 2G -@ 5 -T {output.bam}.tmp > {output.bam} 2> {log}
         samtools index {output.bam}
         """
 
@@ -541,7 +540,6 @@ if BAM_INPUT == False:
             bam = os.path.join(WORKDIR, "alignment/raw-{sample}.bam") 
         output: 
             os.path.join(WORKDIR, "QC/{sample}.encodeQC.txt")
-        threads: 4
         shell:
             """
             source activate full-pipe-main-env
@@ -574,7 +572,7 @@ rule phantom_peak_qual:
     shell:
         """
         source activate full-pipe-spp
-        run_spp -c={input.bam} -savp -rf -p=4 -odir={params}  -out={output} -tmpdir={params} 2> {log}
+        run_spp -c={input.bam} -savp -rf -p={threads} -odir={params}  -out={output} -tmpdir={params} 2> {log}
         """
 
 # Deeptools QC
@@ -582,10 +580,11 @@ rule computeMatrix_QC:
     input : get_big_wig_with_mark_or_tf 
     output : os.path.join(WORKDIR, "QC/{mark}.computeMatrix.gz")
     params : GENOME_TSS
+    threads: 4
     shell:
         """
         source activate full-pipe-main-env
-	    computeMatrix reference-point -S {input} -R {params} -a 2000 -b 2000 -out {output} --numberOfProcessors max/2
+	    computeMatrix reference-point -S {input} -R {params} -a 2000 -b 2000 -out {output} --numberOfProcessors {threads}
         """
 
 # Deeptools QC
@@ -759,14 +758,14 @@ rule get_bigwigs_using_inputs:
         spp = os.path.join(WORKDIR, "QC/phantompeakqualtools/{case}.spp.out")
     output:  os.path.join(WORKDIR, "visualisation/bigwigs_with_control/{case}-vs-{control}.bw")
     log: os.path.join(WORKDIR, "logs/{case}-vs-{control}.makebw")
-    threads: 5
+    threads: 4
     params: jobname = "{case}"
     message: "Making bigwig of {case} log2 fold change versus {control}"
     shell:
         """
         source activate full-pipe-main-env
         bamCompare --bamfile1 {input.case} --bamfile2 {input.control} \
-        --normalizeUsing RPKM  --operation log2 --operation first --scaleFactorsMethod None --binSize 10 --smoothLength 30 --numberOfProcessors max/2 \
+        --normalizeUsing RPKM  --operation log2 --operation first --scaleFactorsMethod None --binSize 10 --smoothLength 30 --numberOfProcessors {threads} \
         --extendReads `cut -f3 {input.spp} | awk 'BEGIN{{FS=","}}{{print $1}}'` -o {output} 2> {log}
         """
 
@@ -777,13 +776,13 @@ rule get_bigwigs:
         spp = os.path.join(WORKDIR, "QC/phantompeakqualtools/{sample}.spp.out")
     output: os.path.join(WORKDIR, "visualisation/bigwigs/{sample}.bw")
     log: os.path.join(WORKDIR, "logs/{sample}.makebw")
-    threads: 5
+    threads: 4
     params: jobname = "{sample}"
     message: "Making bigwig of {sample}"
     shell:
         """
         source activate full-pipe-main-env
-        bamCoverage -b {input.bam} --normalizeUsing RPKM --binSize 10 --smoothLength 30 -p 5 --numberOfProcessors max/2 \
+        bamCoverage -b {input.bam} --normalizeUsing RPKM --binSize 10 --smoothLength 30 -p 5 --numberOfProcessors {threads} \
         --extendReads `cut -f3 {input.spp} | awk 'BEGIN{{FS=","}}{{print $1}}'` -o {output} 2> {log}
         """
 
