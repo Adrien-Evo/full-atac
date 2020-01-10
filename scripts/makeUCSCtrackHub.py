@@ -60,7 +60,7 @@ def subgroups_from_filename(fn):
     ##Checking the file name for the provided samp
     for sample_name in args.sample_name:
         if sample_name in fn:
-            track_subgroup['samp'] = sample_name
+            track_subgroup['samp'] = sample_name.replace(".",'')
 
     if args.categories is not None :
         for category in args.categories:
@@ -78,7 +78,7 @@ def simplify_filename(fn):
     ##Checking the file name for the provided samp
     for sample_name in args.sample_name:
         if sample_name in fn:
-            simplifiedName = simplifiedName + sample_name
+            simplifiedName = simplifiedName + sample_name.replace(".",'')
     
     if args.categories is not None :
         for category in args.categories:
@@ -89,7 +89,7 @@ def simplify_filename(fn):
     return simplifiedName
 
 # Sample subgroup
-dict_sample_name = {args.sample_name[i]: args.sample_name[i] for i in range(len(args.sample_name))}
+dict_sample_name = {args.sample_name[i].replace(".",''): args.sample_name[i].replace(".",'') for i in range(len(args.sample_name))}
 if args.categories is not None :
     dict_categories = {args.categories[i]: args.categories[i] for i in range(len(args.categories))}
 
