@@ -78,7 +78,7 @@ dependencies:
   - mkl=2019.1=144
   - mkl_fft=1.0.10=py36h14c3975_1
   - mkl_random=1.0.2=py36h637b7d7_2
-  - multiqc=1.7=py_4
+  - multiqc=1.8=py_1
   - mysql-connector-c=6.1.11=hd2bbab6_1003
   - nbformat=4.4.0=py_1
   - ncurses=6.1=hf484d3e_1002
