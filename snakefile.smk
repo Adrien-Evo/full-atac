@@ -194,7 +194,7 @@ def get_canonical_chromSize(genomeSize):
     with open(genomeSize, 'r') as fi:
         size = [line for line in fi if not re.search('\.|_', line)]
 
-    output_file_name = "data/canonical_genome_size"
+    output_file_name = "data/canonical_genome_size.txt"
     with open(output_file_name, 'w') as fo:
         for item in size:
             fo.write("%s" % item)
@@ -427,7 +427,6 @@ if BAM_INPUT == False:
             """
 
     # Get the duplicates marked sorted bam, remove unmapped reads by samtools view -F 1804 #
-    # Samblaster should run before samtools sort #
     rule filter_alignment:
         input:  os.path.join(WORKDIR, "alignment/raw-{sample}.bam")
         output: os.path.join(WORKDIR, "alignment/bams/{sample}.sorted.bam")
@@ -765,7 +764,7 @@ rule get_bigwigs_using_inputs:
         """
         source activate full-pipe-main-env
         bamCompare --bamfile1 {input.case} --bamfile2 {input.control} \
-        --normalizeUsing RPKM  --operation log2 --operation first --scaleFactorsMethod None --binSize 10 --smoothLength 30 --numberOfProcessors {threads} \
+        --normalizeUsing RPKM  --operation log2 --operation first --scaleFactorsMethod None --binSize 30 --smoothLength 150 --numberOfProcessors {threads} \
         --extendReads `cut -f3 {input.spp} | awk 'BEGIN{{FS=","}}{{print $1}}'` -o {output} 2> {log}
         """
 

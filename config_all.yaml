@@ -8,7 +8,7 @@ OUTPUT_DIR: './chip-Seq-good-samples'
 # Name of your input
 control: 'Input'
 
-bam: True
+bam: False
 
 #####################################################
 ##########  Genome data #############################
@@ -46,14 +46,14 @@ macs_g: hs
 macs_pvalue: 1e-5
 macs2_g: hs
 macs2_pvalue: 1e-5
-macs2_pvalue_broad_cutoff: 1e-5
+macs2_pvalue_broad_cutoff: 0.05
 
 # config file for narrow or broad peak calling for all
 narrow_broad: './config/broad_narrow_histone_TF.yaml'
 
 # ~~~~~~~~~~~~~~~~ ChromHMM ~~~~~~~~~~~~~~~~~
 # - run chromHMM or not --- chromHMM: True  || chromHMM: False
-chromHMM: True
+chromHMM: False
 # ---- chromHMM bin size -----
 binsize: 200
 # ---- Number of states -----
