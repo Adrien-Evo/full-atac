@@ -297,7 +297,7 @@ ALL_MULTIQC = [os.path.join(WORKDIR, "multiQC/multiqc_report.html")]
 
 ALL_CONFIG= [os.path.join(WORKDIR, "alignment/bams.json")]
 
-HUB_FOLDER = os.path.join(WORKDIR, "UCSC_HUB")
+HUB_FOLDER = os.path.join(WORKDIR, "visualisation/{}_UCSC_hub").format(PROJECT_NAME)
 
 ALL_HUB = [os.path.join(HUB_FOLDER,"{}.hub.txt").format(PROJECT_NAME)]
 
