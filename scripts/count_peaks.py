@@ -31,7 +31,6 @@ multiqc_output = {
     "plot_type": "bargraph",
     "pconfig": {
         "id": "MACS2 " + args.peak_type,
-        "title": "MACS2 " + args.peak_type + " peak count",
         "ylab": "# Peaks",
         "cpswitch": False,                       # Show the 'Counts / Percentages' switch?
         "cpswitch_c_active": True
