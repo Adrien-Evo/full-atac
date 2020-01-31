@@ -261,12 +261,15 @@ ALL_ENCODE = expand(os.path.join(WORKDIR, "QC/{sample}.encodeQC.txt"), sample = 
 # ---- Grouped by marks ---- #
 ALL_COMPUTEMATRIX = expand(os.path.join(WORKDIR, "QC/{mark}.computeMatrix.gz"), mark = MARKS)
 ALL_DPQC_PLOT = expand(os.path.join(WORKDIR, "QC/plots/tss/{mark}.plotHeatmap.png"), mark = MARKS)
+ALL_DPQC_PLOT.extend(expand(os.path.join(WORKDIR, "QC/plots/profile/{mark}.plotProfile.png"), mark = MARKS))
 ALL_DPQC = expand(os.path.join(WORKDIR, "QC/{mark}.plotProfileOutFileNameData.txt"), mark = MARKS)
 
 
 # --- Grouped by samples --- #
 ALL_DPQC_PLOT.extend(expand(os.path.join(WORKDIR, "QC/plots/fingerprint/{samp}.fingerprint.png"), samp = SAMPLES))
 ALL_DPQC_PLOT.extend(expand(os.path.join(WORKDIR, "QC/plots/correlation/{samp}.plotCorrelation.png"), samp = SAMPLES))
+ALL_DPQC_PLOT.extend([os.path.join(WORKDIR, "QC/plots/correlation/plotCorrelation.png")])
+
 ALL_DPQC.extend(expand(os.path.join(WORKDIR, "QC/{samp}.plotFingerprintOutRawCounts.txt"), samp = SAMPLES))
 ALL_DPQC.extend(expand(os.path.join(WORKDIR, "QC/{samp}.plotFingerprintOutQualityMetrics.txt"), samp = SAMPLES))
 ALL_DPQC.extend([os.path.join(WORKDIR, "QC/outFileCorMatrix.txt")])
