@@ -266,8 +266,11 @@ ALL_DPQC = expand(os.path.join(WORKDIR, "QC/{mark}.plotProfileOutFileNameData.tx
 
 # --- Grouped by samples --- #
 ALL_DPQC_PLOT.extend(expand(os.path.join(WORKDIR, "QC/plots/{samp}.fingerprint.png"), samp = SAMPLES))
+ALL_DPQC_PLOT.extend(expand(os.path.join(WORKDIR, "QC/plots/{samp}.plotCorrelation.png")
 ALL_DPQC.extend(expand(os.path.join(WORKDIR, "QC/{samp}.plotFingerprintOutRawCounts.txt"), samp = SAMPLES))
 ALL_DPQC.extend(expand(os.path.join(WORKDIR, "QC/{samp}.plotFingerprintOutQualityMetrics.txt"), samp = SAMPLES))
+###ALL_DPQC.extend(expand(os.path.join(WORKDIR, "QC/{samp}.outFileCorMatrix.txt"), samp = SAMPLES))
+ALL_DPQC.extend([os.path.join(WORKDIR, "QC/outFileCorMatrix.txt")])
 
 # ~~~~~~~~~~~ ChromHMM specific ~~~~~~~~~~~ #
 if config["chromHMM"]:
@@ -323,7 +326,7 @@ TARGETS.extend(ALL_HUB)
 if not BAM_INPUT:
     TARGETS.extend(ALL_CONFIG)
 
-#TEMP
+#Here some of the ouputs of the rules are not used by multiQC and need adding to the rule all
 TARGETS.extend(ALL_DPQC_PLOT)
 TARGETS.extend(ALL_PEAKS)
 
@@ -341,6 +344,17 @@ def get_big_wig_with_mark_or_tf(wildcards):
     bigwigs = list()
     if wildcards.mark in CONTROLS:
             bigwigs.append(os.path.join(WORKDIR, "visualisation/bigwigs/" + wildcards.mark + ".bw"))
+    else:
+        for s in samples:
+            bigwigs.append(os.path.join(WORKDIR, "visualisation/bigwigs/" + s + ".bw"))
+    return bigwigs
+
+# ~ Aggregation of bigwigs by sample for each of its marks or TF ~ #
+def get_big_wig_per_sample(wildcards):
+    samples = SAMPLES_COMPLETE_NAME[wildcards.samp]
+    bigwigs = list()
+    if wildcards.samp in CONTROLS:
+            bigwigs.append(os.path.join(WORKDIR, "visualisation/bigwigs/" + wildcards.samp + ".bw"))
     else:
         for s in samples:
             bigwigs.append(os.path.join(WORKDIR, "visualisation/bigwigs/" + s + ".bw"))
@@ -601,11 +615,56 @@ rule plotProfile:
     input :  os.path.join(WORKDIR, "QC/{mark}.computeMatrix.gz")
     output : 
         plot = os.path.join(WORKDIR, "QC/plots/{mark}.plotProfile.png"),
-        outFileNameData =  os.path.join(WORKDIR, "QC/{mark}.plotProfileOutFileNameData.txt")
+        outFileNameData = os.path.join(WORKDIR, "QC/{mark}.plotProfileOutFileNameData.txt")
     shell:
         """
         source activate full-pipe-main-env
         plotProfile -m {input} -out {output.plot} --outFileNameData {output.outFileNameData} --refPointLabel TSS
+        """
+
+# Deeptools correlation of samples. Plots per samples regrouping all marks or TF
+rule multiBigwigSummary:
+    input : get_big_wig_per_sample 
+    output : os.path.join(WORKDIR, "QC/{samp}.multiBigwigSummary.npz")
+    threads: 4
+    shell:
+        """
+        source activate full-pipe-main-env
+	    multiBigwigSummary bins --bwfiles {input} -out {output} --numberOfProcessors {threads}
+        """
+
+rule plotCorrelation:
+    input :  os.path.join(WORKDIR, "QC/{samp}.multiBigwigSummary.npz")
+    output : 
+        plot = os.path.join(WORKDIR, "QC/plots/{samp}.plotCorrelation.png"),
+        outFileNameData = os.path.join(WORKDIR, "QC/{samp}.outFileCorMatrix.txt")
+    shell:
+        """
+        source activate full-pipe-main-env
+        plotCorrelation --corData {input} --plotFile {output.plot} --outFileCorMatrix {output.outFileNameData} --corMethod pearson --whatToPlot heatmap --plotNumbers 
+        """
+
+
+# Deeptools correlation of all samples grouped together for multiQC
+rule all_multiBigwigSummary:
+    input : ALL_BIGWIG
+    output : os.path.join(WORKDIR, "QC/multiBigwigSummary.npz")
+    threads: 4
+    shell:
+        """
+        source activate full-pipe-main-env
+	    multiBigwigSummary bins --bwfiles {input} -out {output} --numberOfProcessors {threads}
+        """
+
+rule all_plotCorrelation:
+    input :  os.path.join(WORKDIR, "QC/multiBigwigSummary.npz")
+    output : 
+        plot = os.path.join(WORKDIR, "QC/plots/plotCorrelation.png"),
+        outFileNameData = os.path.join(WORKDIR, "QC/outFileCorMatrix.txt")
+    shell:
+        """
+        source activate full-pipe-main-env
+        plotCorrelation --corData {input} --plotFile {output.plot} --outFileCorMatrix {output.outFileNameData} --corMethod pearson --whatToPlot heatmap --plotNumbers 
         """
 
 # ChipSeq QCs plots from deeptools. Plotfingerprints are really usefull to see focal enrichment of your Chip-Seq enrichment
