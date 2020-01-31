@@ -260,16 +260,15 @@ ALL_ENCODE = expand(os.path.join(WORKDIR, "QC/{sample}.encodeQC.txt"), sample = 
 # ~~~~~~~~~~~ Deeptools specific ~~~~~~~~~~ #
 # ---- Grouped by marks ---- #
 ALL_COMPUTEMATRIX = expand(os.path.join(WORKDIR, "QC/{mark}.computeMatrix.gz"), mark = MARKS)
-ALL_DPQC_PLOT = expand(os.path.join(WORKDIR, "QC/plots/{mark}.plotHeatmap.png"), mark = MARKS)
+ALL_DPQC_PLOT = expand(os.path.join(WORKDIR, "QC/plots/tss/{mark}.plotHeatmap.png"), mark = MARKS)
 ALL_DPQC = expand(os.path.join(WORKDIR, "QC/{mark}.plotProfileOutFileNameData.txt"), mark = MARKS)
 
 
 # --- Grouped by samples --- #
-ALL_DPQC_PLOT.extend(expand(os.path.join(WORKDIR, "QC/plots/{samp}.fingerprint.png"), samp = SAMPLES))
-ALL_DPQC_PLOT.extend(expand(os.path.join(WORKDIR, "QC/plots/{samp}.plotCorrelation.png")
+ALL_DPQC_PLOT.extend(expand(os.path.join(WORKDIR, "QC/plots/fingerprint/{samp}.fingerprint.png"), samp = SAMPLES))
+ALL_DPQC_PLOT.extend(expand(os.path.join(WORKDIR, "QC/plots/correlation/{samp}.plotCorrelation.png"), samp = SAMPLES))
 ALL_DPQC.extend(expand(os.path.join(WORKDIR, "QC/{samp}.plotFingerprintOutRawCounts.txt"), samp = SAMPLES))
 ALL_DPQC.extend(expand(os.path.join(WORKDIR, "QC/{samp}.plotFingerprintOutQualityMetrics.txt"), samp = SAMPLES))
-###ALL_DPQC.extend(expand(os.path.join(WORKDIR, "QC/{samp}.outFileCorMatrix.txt"), samp = SAMPLES))
 ALL_DPQC.extend([os.path.join(WORKDIR, "QC/outFileCorMatrix.txt")])
 
 # ~~~~~~~~~~~ ChromHMM specific ~~~~~~~~~~~ #
@@ -603,7 +602,7 @@ rule computeMatrix_QC:
 # Deeptools QC
 rule plotHeatmap:
     input :  os.path.join(WORKDIR, "QC/{mark}.computeMatrix.gz")
-    output : os.path.join(WORKDIR, "QC/plots/{mark}.plotHeatmap.png")
+    output : os.path.join(WORKDIR, "QC/plots/tss/{mark}.plotHeatmap.png")
     shell:
         """
         source activate full-pipe-main-env
@@ -614,7 +613,7 @@ rule plotHeatmap:
 rule plotProfile:
     input :  os.path.join(WORKDIR, "QC/{mark}.computeMatrix.gz")
     output : 
-        plot = os.path.join(WORKDIR, "QC/plots/{mark}.plotProfile.png"),
+        plot = os.path.join(WORKDIR, "QC/plots/profile/{mark}.plotProfile.png"),
         outFileNameData = os.path.join(WORKDIR, "QC/{mark}.plotProfileOutFileNameData.txt")
     shell:
         """
@@ -636,7 +635,7 @@ rule multiBigwigSummary:
 rule plotCorrelation:
     input :  os.path.join(WORKDIR, "QC/{samp}.multiBigwigSummary.npz")
     output : 
-        plot = os.path.join(WORKDIR, "QC/plots/{samp}.plotCorrelation.png"),
+        plot = os.path.join(WORKDIR, "QC/plots/correlation/{samp}.plotCorrelation.png"),
         outFileNameData = os.path.join(WORKDIR, "QC/{samp}.outFileCorMatrix.txt")
     shell:
         """
@@ -659,7 +658,7 @@ rule all_multiBigwigSummary:
 rule all_plotCorrelation:
     input :  os.path.join(WORKDIR, "QC/multiBigwigSummary.npz")
     output : 
-        plot = os.path.join(WORKDIR, "QC/plots/plotCorrelation.png"),
+        plot = os.path.join(WORKDIR, "QC/plots/correlation/plotCorrelation.png"),
         outFileNameData = os.path.join(WORKDIR, "QC/outFileCorMatrix.txt")
     shell:
         """
@@ -673,7 +672,7 @@ rule plotFingerPrint:
         bam = get_bams_per_sample, 
         bai = get_bam_index_per_sample
     output:
-        plot = os.path.join(WORKDIR, "QC/plots/{samp}.fingerprint.png"), 
+        plot = os.path.join(WORKDIR, "QC/plots/fingerprint/{samp}.fingerprint.png"), 
         rawCounts = os.path.join(WORKDIR, "QC/{samp}.plotFingerprintOutRawCounts.txt"),
         qualityMetrics = os.path.join(WORKDIR, "QC/{samp}.plotFingerprintOutQualityMetrics.txt")
     params: 
