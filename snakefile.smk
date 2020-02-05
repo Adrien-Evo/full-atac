@@ -65,7 +65,7 @@ for samp in SAMPLE_MARK:
         sample = "".join(samp.split("_")[0:-1])
         #Here mark should contain the Input name
         mark = samp.split("_")[-1]
-        controlFile[sample] = " ".join(FILES[sample][mark])
+        controlFile[sample] = "".join(FILES[sample][mark])
 #Checking if control has been found:
 if not bool(controlFile):
     logger.warning("Can't file any controls/input named " + CONTROL_NAME + ". Exiting")
@@ -79,7 +79,6 @@ for key, value in controlFile.items():
         controlFileFlipped[value] = [key] 
     else: 
         controlFileFlipped[value].append(key) 
-
 # controlFileFlipped dict now is of length the number of unique controls, with the samples using those controls as values
 
 # mergedInputDict allows to create a generic name for the Inputs ( Input1, Input2 etc etc)
@@ -176,14 +175,14 @@ for sample in sorted(FILES.keys()):
 for key, value in CONTROL_SAMPLE_DICT.items():
     MARKS_COMPLETE_NAME.setdefault(value, []).append(key)
 
-###CheckingALL_SAMPLE_FILES
-#print("SAMPLES     ",ALL_SAMPLE_FILES["Input1"])
-#print("ALL_SAMPLES     ", CONTROL_MERGED_FILES)
+# Checking dict
+# print("SAMPLES     ",ALL_SAMPLE_FILES)
+# print("ALL_SAMPLES     ", CONTROL_MERGED_FILES)
 # print("MARKS     ", MARKS)
 # print("MARKS_NO_CONTROL     ", MARKS_NO_CONTROL)
 # print("MARKS_COMPLETE_NAME     ", MARKS_COMPLETE_NAME)
 # print("CONTROL_SAMPLE_DICT     ",CONTROL_SAMPLE_DICT)
-# print("SAMPLES_COMPLETE_NAME          ",SAMPLES_COMPLETE_NAME)
+# print("SAMPLES_COMPLETE_NAME          ",CONTROL_MERGED_FILES)
 
 ###########################################################################
 ############################# Helper functions ############################
@@ -467,7 +466,7 @@ if BAM_INPUT == False:
                 #Mini dictionary containing marks and associated sorted bam filepath
                 mini_dict = {}
                 for mark in SAMPLES[samp]:
-
+                    
                     filepath  =  os.path.join(WORKDIR, "alignment/bams/" + samp + "_" + mark + ".sorted.bam")
                     mini_dict.update({mark : filepath})
 
@@ -948,7 +947,7 @@ if config["chromHMM"]:
             source activate full-pipe-main-env
             bedtools bamtobed -i {input} > {output}
             """
-    #This rule does not need an input, but it's nice ti have it wrapped up like that anyway.
+    #This rule does not need an input, but it's nice to have it wrapped up like that anyway.
     rule make_table:
         input : 
             expand(os.path.join(WORKDIR, "bamtobed/{sample}.bed"), sample = SAMPLE_MARK_FOR_CHROMHMM + CONTROLS)
