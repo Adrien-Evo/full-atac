@@ -841,7 +841,7 @@ rule get_bigwigs:
     shell:
         """
         source activate full-pipe-main-env
-        bamCoverage -b {input.bam} --normalizeUsing RPKM --binSize 10 --smoothLength 30 -p 5 --numberOfProcessors {threads} \
+        bamCoverage -b {input.bam} --normalizeUsing RPKM --binSize 30 --smoothLength 150 --numberOfProcessors {threads} \
         --extendReads `cut -f3 {input.spp} | awk 'BEGIN{{FS=","}}{{print $1}}'` -o {output} 2> {log}
         """
 
