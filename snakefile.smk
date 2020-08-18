@@ -206,7 +206,6 @@ def get_chr(chromSize):
     return(chr)
 
 CANONICAL_CHR = get_chr(get_canonical_chromSize(GENOME_SIZE))
-
 ###########################################################################
 ########################### Listing OUTPUT FILES ##########################
 ###########################################################################
@@ -642,7 +641,7 @@ rule plotCorrelation:
     shell:
         """
         source activate full-pipe-main-env
-        plotCorrelation --corData {input} --plotFile {output.plot} --outFileCorMatrix {output.outFileNameData} --corMethod pearson --whatToPlot heatmap --plotNumbers 
+        plotCorrelation --corData {input} --plotFile {output.plot} --outFileCorMatrix {output.outFileNameData} --corMethod pearson --whatToPlot heatmap --plotNumbers --skipZeros
         """
 
 
@@ -665,7 +664,7 @@ rule all_plotCorrelation:
     shell:
         """
         source activate full-pipe-main-env
-        plotCorrelation --corData {input} --plotFile {output.plot} --outFileCorMatrix {output.outFileNameData} --corMethod pearson --whatToPlot heatmap --plotNumbers 
+        plotCorrelation --corData {input} --plotFile {output.plot} --outFileCorMatrix {output.outFileNameData} --corMethod pearson --whatToPlot heatmap --plotNumbers --skipZeros
         """
 
 # ChipSeq QCs plots from deeptools. Plotfingerprints are really usefull to see focal enrichment of your Chip-Seq enrichment
