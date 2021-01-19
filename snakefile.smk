@@ -13,7 +13,7 @@ shell.prefix("set -eo pipefail; echo BEGIN at $(date); ")
 # ================== Config file loading ================= #
 # ======================================================== #
 
-# Loading config file items
+# -- Loading main config file items -- #
 FILES = json.load(open(config['SAMPLES_JSON']))
 WORKDIR = os.path.abspath(config["OUTPUT_DIR"])
 PROJECT_NAME = config['PROJECT_NAME']
@@ -176,13 +176,13 @@ for key, value in CONTROL_SAMPLE_DICT.items():
     MARKS_COMPLETE_NAME.setdefault(value, []).append(key)
 
 # Checking dict
-# print("SAMPLES     ",ALL_SAMPLE_FILES)
-# print("ALL_SAMPLES     ", CONTROL_MERGED_FILES)
-# print("MARKS     ", MARKS)
-# print("MARKS_NO_CONTROL     ", MARKS_NO_CONTROL)
-# print("MARKS_COMPLETE_NAME     ", MARKS_COMPLETE_NAME)
-# print("CONTROL_SAMPLE_DICT     ",CONTROL_SAMPLE_DICT)
-# print("SAMPLES_COMPLETE_NAME          ",CONTROL_MERGED_FILES)
+print("SAMPLES     ",ALL_SAMPLE_FILES)
+print("ALL_SAMPLES     ", CONTROL_MERGED_FILES)
+print("MARKS     ", MARKS)
+print("MARKS_NO_CONTROL     ", MARKS_NO_CONTROL)
+print("MARKS_COMPLETE_NAME     ", MARKS_COMPLETE_NAME)
+print("CONTROL_SAMPLE_DICT     ",CONTROL_SAMPLE_DICT)
+print("SAMPLES_COMPLETE_NAME          ",CONTROL_MERGED_FILES)
 
 ###########################################################################
 ############################# Helper functions ############################
@@ -244,7 +244,7 @@ ALL_BAM     = CONTROL_BAM + CASE_BAM
 
 # ~~ All samples files (cases + control) ~~ #
 ALL_DOWNSAMPLE_BAM = expand(os.path.join(WORKDIR, "alignment/downsampling/{sample}-downsample.sorted.bam"), sample = ALL_SAMPLES)
-ALL_FASTQ   = expand(os.path.join(WORKDIR, "alignment/{sample}.fastq"), sample = ALL_SAMPLES)
+ALL_FASTQ   = expand(os.path.join(WORKDIR, "alignment/{sample}.fastq.gz"), sample = ALL_SAMPLES)
 ALL_FASTQC  = expand(os.path.join(WORKDIR, "QC/fastqc/{sample}_fastqc.zip"), sample = ALL_SAMPLES)
 ALL_BOWTIE_LOG = expand(os.path.join(WORKDIR, "logs/{sample}.align"), sample = ALL_SAMPLES)
 ALL_INDEX = expand(os.path.join(WORKDIR, "alignment/bams/{sample}.sorted.bam.bai"), sample = ALL_SAMPLES)
@@ -411,6 +411,10 @@ localrules: all
 rule all:
     input: TARGETS
 
+# ~~~~~~~~~~~~~~~ Prioritizing paired if ambiguous cases
+
+ruleorder: merge_fastqs_paired > merge_fastqs_single
+
 ###########################################################################
 ######################### Alignement using BOWTIE2 ########################
 ###########################################################################
@@ -419,16 +423,30 @@ rule all:
 if BAM_INPUT == False:
 
     #Now only for single-end ChIPseq
-    rule merge_fastqs:
-        input: get_fastq
-        output: temp(os.path.join(WORKDIR, "alignment/{sample}.fastq"))
+    rule merge_fastqs_single:
+        input: lambda wildcards: SAMPLES_JSON[wildcards.sample]
+        output: temp(os.path.join(WORKDIR, "alignment/{sample}.fastq.gz"))
         log: os.path.join(WORKDIR, "logs/{sample}.unzip")
-        shell: "gunzip -c {input} > {output} 2> {log}"
+        shell: "cat {input} > {output} 2> {log}"
 
 
+    rule merge_fastqs_paired:
+        input:
+            R1 = lambda wildcards: SAMPLES_JSON[wildcards.sample]['R1'],
+            R2 = lambda wildcards: SAMPLES_JSON[wildcards.sample]['R2']
+        output:
+            R1 = temp(os.path.join(WORKDIR,"alignment/fastq/{sample}_R1.fastq.gz")),
+            R2 = temp(os.path.join(WORKDIR,"alignment/fastq/{sample}_R2.fastq.gz"))
+        message: "Merging fastq."
+        shell:
+            """
+            cat {input.R1} > {output.R1}
+            cat {input.R2} > {output.R2}
+            """
+    
     # Simple alignment with bowtie 2 followed by sorting #
     rule align:
-        input:  os.path.join(WORKDIR, "alignment/{sample}.fastq")
+        input:  os.path.join(WORKDIR, "alignment/{sample}.fastq.gz")
         output: temp(os.path.join(WORKDIR, "alignment/raw-{sample}.bam"))
         log:    os.path.join(WORKDIR, "logs/{sample}.align")
         shell:
@@ -561,7 +579,7 @@ if BAM_INPUT == False:
             END{{m1_m2=-1.0; if(m2>0) m1_m2=m1/m2; print "Sample Name","NRF","PBC1","PBC2"; print "{wildcards.sample}",m0/mt,m1/m0,m1_m2}}' > {output}
             """
     rule fastqc:
-        input:  os.path.join(WORKDIR, "alignment/{sample}.fastq")
+        input:  os.path.join(WORKDIR, "alignment/{sample}.fastq.gz")
         output: os.path.join(WORKDIR, "QC/fastqc/{sample}_fastqc.zip"), os.path.join(WORKDIR, "QC/fastqc/{sample}_fastqc.html")
         log:    os.path.join(WORKDIR, "logs/{sample}.fastqc")
         params:
