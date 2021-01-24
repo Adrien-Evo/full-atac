@@ -1,2 +1,4 @@
 sample_name	fastq_name	factor	paired
 SRR8581595	SRR8581595	CTCF	yes
+SRR765	SRR765_H3K4me3	H3K4me3	no
+SRR765	SRR765_CTCF	CTCF	no

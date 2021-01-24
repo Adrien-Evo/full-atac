@@ -42,6 +42,7 @@ with open(args.meta, "r") as f:
         
         if paired == "no" :
     	## now just assume the file name in the metafile contained in the fastq file path
+            paired_dic[sample_name] = 0
             fastq_full_path = [x for x in fastq_paths if fastq_name in x]
             if fastq_full_path:
                 FILES[sample_name][sample_type].extend(fastq_full_path)
@@ -59,7 +60,12 @@ with open(args.meta, "r") as f:
             
 print()
 sample_num = len(FILES.keys())
+
 print ("In total, {} unique samples will be processed".format(sample_num))
+print ("------------------------------------------")
+
+for sample in FILES.keys():
+	print ("Sample {sample} has {n} mark or TF".format(sample = sample, n = len(FILES[sample])))
 print ("------------------------------------------")
 for sample_name in sorted(FILES.keys()):
 	for sample_type in FILES[sample_name]:
@@ -70,11 +76,11 @@ for sample_name in sorted(FILES.keys()):
             else:
                 fastq_file = " ".join(FILES[sample_name][sample_type])
                 print("Sample {sample_name}'s {sample_type} fastq path is {fastq_file}".format(sample_name = sample_name, sample_type = sample_type, fastq_file = fastq_file))
+print ("------------------------------------------")
 
+print("Output : samples_from_{meta}.json".format(meta = os.path.splitext(args.meta)[0]))
 print ("------------------------------------------")
-for sample in FILES.keys():
-	print ("Sample {sample} has {n} mark or TF".format(sample = sample, n = len(FILES[sample])))
-print ("------------------------------------------")
+
 print("Please check the samples_from_{meta}.json file for any errors before launching the pipeline".format(meta = os.path.splitext(args.meta)[0]))
 print()
 
