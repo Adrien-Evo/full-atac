@@ -3,12 +3,13 @@
 
 **A snakemake pipeline to process single end human ChIP-seq data on a linux machine.**
 
-This pipeline will allow youto do the following:
+This pipeline will allow you to do the following:
 * Quality control of your samples
-* Alignement to peak calling
+* Alignment and peak calling
 * Generate a hub to visualize your samples on the UCSC genome browser
-* Foncionnal annotation
+* Fonctionnal annotation of your peaks
 * Motif Finding TODO
+* Super enhancer TODO
 
 
 This pipeline is based on the [pyflow-ChIP-seq](https://github.com/crazyhottommy/pyflow-ChIPseq) from the talented [Ming Tang](https://github.com/crazyhottommy). I repackaged most of the steps, added some, deleted some, created new conda environments and packaged all QC outputs in multiQC.
@@ -18,6 +19,11 @@ This pipeline should be easy to install with snakemake and conda present on the 
 
 
 # Installation
+## Prerequisite
+* Anaconda installed
+* Snakemake installed
+## Steps
+
 On a linux terminal, please run the following commands :
 
 ```
@@ -25,16 +31,23 @@ git clone https://gitlab.univ-nantes.fr/foucal-a/full-chipseq.git
 cd full-chipseq
 ./install_dependencies
 ```
+
 Those commands will clone the git directory, move into the folder and install a few things :
 * UCSC executables like *bedTbigBed*
 * Conda environments
-* Genomic data (for *homo sapiens* only at the moment)
-
-
+* Genomic data (for *homo sapiens* only at the moment, with hg19)
 
 
 # Preparing to launch the pipeline
 
+To launch the pipeline you will need :
+* One json file that details where the samples can be found and what are the marks. An example can be found in "samples_from_meta.json"
+This file can be created manually or you can use a meta file to be used with the sample2json script to create your json file this way :
+python sample2json.py --meta meta.txt --fastq_dir directory
+
+where directory contains all the fastq.gz needed
+
+* One config files detailling all the different options and data needed to launch the pipe. One example is provided as config_example.yaml in the config directory
 
 
 
