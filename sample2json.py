@@ -17,6 +17,7 @@ args = parser.parse_args()
 assert args.fastq_dir is not None, "please provide the path to the fastq folder"
 assert args.meta is not None, "please provide the path to the meta file"
 
+output_prefix = os.path.splitext(os.path.basename(args.meta))[0]
 
 ## collect all the fastq.gz full path in to a list
 fastq_paths = []
@@ -78,14 +79,14 @@ for sample_name in sorted(FILES.keys()):
                 print("Sample {sample_name}'s {sample_type} fastq path is {fastq_file}".format(sample_name = sample_name, sample_type = sample_type, fastq_file = fastq_file))
 print ("------------------------------------------")
 
-print("Output : samples_from_{meta}.json".format(meta = os.path.splitext(args.meta)[0]))
+print("Output : samples_from_{meta}.json".format(meta = output_prefix))
 print ("------------------------------------------")
 
 print("Please check the samples_from_{meta}.json file for any errors before launching the pipeline".format(meta = os.path.splitext(args.meta)[0]))
 print()
 
 js = json.dumps(FILES, indent = 4, sort_keys=True)
-open('samples_from_{meta}.json'.format(meta = os.path.splitext(args.meta)[0]),'w').writelines(js)
+open('samples_from_{meta}.json'.format(meta = output_prefix),'w').writelines(js)
 
 
 
