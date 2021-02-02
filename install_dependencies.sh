@@ -10,7 +10,7 @@ echo -e "\e[33m#################################################\n\e[0m"
 wget http://hgdownload.soe.ucsc.edu/admin/exe/linux.x86_64.v369/bigBedToBed -O scripts/bigBedToBed
 wget http://hgdownload.soe.ucsc.edu/admin/exe/linux.x86_64.v369/bedToBigBed -O scripts/bedToBigBed
 
-chmod +x scripts/bigWigToWig scripts/bigBedToBed scripts/bedToBigBed scripts/wigToBigWig
+chmod +x scripts/bigBedToBed scripts/bedToBigBed
 
 
 # Install conda env

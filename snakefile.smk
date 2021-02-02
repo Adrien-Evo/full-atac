@@ -18,7 +18,8 @@ FILES = json.load(open(config['SAMPLES_JSON']))
 WORKDIR = os.path.abspath(config["OUTPUT_DIR"])
 PROJECT_NAME = config['PROJECT_NAME']
 BAM_INPUT = config['bam']
-NARROW_BROAD = yaml.load(open(config['narrow_broad']))
+CUTRUN_SAMPLES = config['cutrun']
+NARROW_BROAD = yaml.safe_load(open(config['narrow_broad']))
 # -- genome related config - #
 GENOME_FASTA = config['genome_fasta']
 GENOME_GTF = config['genome_gtf']
@@ -53,14 +54,34 @@ CASES = [sample for sample in SAMPLE_MARK if CONTROL_NAME not in sample]
 
 
 # ======================================================== #
-# =========  Defining Control/Input samples   ============ #
+# ============== Defining CUTRUN samples ================= #
 # ======================================================== #
 
+CUTRUN_MARK = []
+for sample in CUTRUN_SAMPLES:
+    for sample_type in FILES[sample].keys():
+        CUTRUN_MARK.append(sample + "_" + sample_type)
+print(CUTRUN_MARK)
+
+# ======================================================== #
+# =========== Defining normal CHipSeqsamples ============= #
+# ======================================================== #
+CHIPSEQ_SAMPLES = [sample for sample in SAMPLES_NAMES if sample not in CUTRUN_SAMPLES]
+
+CHIPSEQ_MARK = [sample for sample in SAMPLE_MARK if sample not in CUTRUN_MARK]
+print(CHIPSEQ_MARK)
+
+CHIPSEQ_CASES = [sample for sample in CHIPSEQ_MARK if CONTROL_NAME not in sample]
+print(CHIPSEQ_MARK)
+
+# ======================================================== #
+# =========  Defining Control/Input samples   ============ #
+# ======================================================== #
 
 #  Create a dictionary linking each sample with their control fastq or bam e.g. { Mousekidney01 : controlIG16_TCGCTAGA_L001_R1_002.fastq.gz 16_TCGCTAGA_L001_R1_001.fastq.gz}  #
 # Joining the list to allow for usage as a dictionary key
 controlFile = dict()
-for samp in SAMPLE_MARK:
+for samp in CHIPSEQ_MARK:
     if CONTROL_NAME in samp:
         sample = "".join(samp.split("_")[0:-1])
         #Here mark should contain the Input name
@@ -100,17 +121,29 @@ for key, value in controlFileFlipped.items():
     CONTROL_MERGED_FILES[value] = key.split(" ")
 
 # Creating the dictionnary for all sample name linked to their input file
-CASES_SAMPLE_FILES = {}
-for case in CASES:
+#CASES_SAMPLE_FILES becomes CHIPSEQ_SAMPLE_FILES
+CHIPSEQ_SAMPLE_FILES = {}
+for case in CHIPSEQ_CASES:
     sample = "_".join(case.split("_")[0:-1])
     mark = case.split("_")[-1]
-    CASES_SAMPLE_FILES[case] = FILES[sample][mark]
+    CHIPSEQ_SAMPLE_FILES[case] = FILES[sample][mark]
 
-ALL_SAMPLE_FILES = {**CASES_SAMPLE_FILES, **CONTROL_MERGED_FILES}
+CUTRUN_SAMPLE_FILES = {}
+for case in CUTRUN_MARK:
+    sample = "_".join(case.split("_")[0:-1])
+    mark = case.split("_")[-1]
+    CUTRUN_SAMPLE_FILES[case] = FILES[sample][mark]
+
+
+
+#ALL_SAMPLE_FILE becomes CHIPSEQ_SAMPLE_FILES
+ALL_SAMPLE_FILES = {**CHIPSEQ_SAMPLE_FILES, **CONTROL_MERGED_FILES, **CUTRUN_SAMPLE_FILES }
+ALL_CHIPSEQ_FILES = {**CHIPSEQ_SAMPLE_FILES, **CONTROL_MERGED_FILES}
 CONTROLS = list(CONTROL_MERGED_FILES.keys())
 
 # ~~~~~~~~~~~~~~ All samples ~~~~~~~~~~~~~~ #
 ALL_SAMPLES = CASES + CONTROLS
+ALL_CHIPSEQ = CHIPSEQ_CASES + CONTROLS
 
 # ======================================================== #
 # ============= Creating helper dictionaries ============= #
@@ -123,12 +156,13 @@ ALL_SAMPLES = CASES + CONTROLS
 SAMPLES = dict()
 for sample in sorted(FILES.keys()):
     for mark in FILES[sample].keys():
-        if(mark not in CONTROL_NAME):
-            SAMPLES.setdefault(sample, []).append(mark)
-
+        #if(mark not in CONTROL_NAME):
+        SAMPLES.setdefault(sample, []).append(mark)
+print(CONTROL_SAMPLE_DICT)
+print(SAMPLES)
 # Adding the proper merged input to the marks of each samples
-for key in SAMPLES.keys():
-    SAMPLES.setdefault(key,[]).append(CONTROL_SAMPLE_DICT[key])
+for sample in CHIPSEQ_SAMPLES:
+    SAMPLES.setdefault(sample,[]).append(CONTROL_SAMPLE_DICT[sample])
 
 # ~~~~~~~~~~~ Samples_name dict ~~~~~~~~~~~ #
 
@@ -141,8 +175,8 @@ for sample in sorted(FILES.keys()):
             SAMPLES_COMPLETE_NAME.setdefault(sample, []).append(sample + "_" + mark)
 
 # Adding the proper merged input to the marks of each samples
-for key in SAMPLES_COMPLETE_NAME.keys():
-    SAMPLES_COMPLETE_NAME.setdefault(key,[]).append(CONTROL_SAMPLE_DICT[key])
+for sample in CHIPSEQ_SAMPLES:
+    SAMPLES_COMPLETE_NAME.setdefault(sample,[]).append(CONTROL_SAMPLE_DICT[sample])
 
 # ~~~~~~~~~~~~~~ Marks dicts ~~~~~~~~~~~~~~ #
 
@@ -176,13 +210,16 @@ for key, value in CONTROL_SAMPLE_DICT.items():
     MARKS_COMPLETE_NAME.setdefault(value, []).append(key)
 
 # Checking dict
-# print("SAMPLES     ",ALL_SAMPLE_FILES)
-# print("ALL_SAMPLES     ", CONTROL_MERGED_FILES)
-# print("MARKS     ", MARKS)
-# print("MARKS_NO_CONTROL     ", MARKS_NO_CONTROL)
-# print("MARKS_COMPLETE_NAME     ", MARKS_COMPLETE_NAME)
-# print("CONTROL_SAMPLE_DICT     ",CONTROL_SAMPLE_DICT)
-# print("SAMPLES_COMPLETE_NAME          ",CONTROL_MERGED_FILES)
+print("SAMPLES     ",ALL_SAMPLE_FILES)
+print("ALL_CONTROL     ", CONTROL_MERGED_FILES)
+print("MARKS     ", MARKS)
+print("MARKS_NO_CONTROL     ", MARKS_NO_CONTROL)
+print("MARKS_COMPLETE_NAME     ", MARKS_COMPLETE_NAME)
+print("CONTROL_SAMPLE_DICT     ",CONTROL_SAMPLE_DICT)
+print("CHIPSEQ_SAMPLE_DICT     ",CHIPSEQ_ALL_SAMPLES)
+print("CONTROL_SAMPLE_DICT     ",CONTROL_SAMPLE_DICT)
+
+
 
 ###########################################################################
 ############################# Helper functions ############################
@@ -206,6 +243,7 @@ def get_chr(chromSize):
     return(chr)
 
 CANONICAL_CHR = get_chr(get_canonical_chromSize(GENOME_SIZE))
+
 ###########################################################################
 ########################### Listing OUTPUT FILES ##########################
 ###########################################################################
@@ -274,7 +312,6 @@ ALL_DPQC.extend([os.path.join(WORKDIR, "QC/outFileCorMatrix.txt")])
 
 # ~~~~~~~~~~~ ChromHMM specific ~~~~~~~~~~~ #
 if config["chromHMM"]:
-
 
     
     CANONICAL_GENOME_SIZE = get_canonical_chromSize(GENOME_SIZE)
@@ -382,6 +419,14 @@ def get_all_marks_per_sample(wildcards):
 
 # ~~~~~~ fastq files for sample_mark ~~~~~~ #
 def get_fastq(wildcards):
+    return ALL_SAMPLE_FILES[wildcards.sample]
+
+# ~~~~~~ fastq files for sample_mark ~~~~~~ #
+def get_fastq_single(wildcards):
+    return ALL_SAMPLE_FILES[wildcards.sample]
+
+# ~~~~~~ fastq files for sample_mark ~~~~~~ #
+def get_fastq_paired(wildcards):
     return ALL_SAMPLE_FILES[wildcards.sample]
 
 # ~~~~~~~ bam files for sample_mark ~~~~~~~ #
