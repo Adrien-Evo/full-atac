@@ -22,6 +22,7 @@ This pipeline should be easy to install with snakemake and conda present on the 
 ## Prerequisite
 * Anaconda installed
 * Snakemake installed
+* Please install mamba using "conda install -c conda-forge mamba" as it is way faster to install the snakemake environment. Mamba is used in the install_dependencies.sh script
 ## Steps
 
 On a linux terminal, please run the following commands :

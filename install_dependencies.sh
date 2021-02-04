@@ -19,13 +19,13 @@ echo -e "\e[33mInstalling conda environments\e[0m"
 echo -e "\e[33m#################################################\n\e[0m"
 
 echo -e "Creating conda env for \e[32mbowtie2 samtools bedtools deepTools sambamba fastqc multiqc featureCounts chromHMM homer \e[0m in the pipeline"
-conda env create -f envs/full-pipe-main-env.yml
+mamba env create -f envs/full-pipe-main-env.yml
 
 echo -e "Creating conda env for \e[32mphantompeakqualtools\e[0m"
-conda env create -f envs/full-pipe-spp.yml
+mamba env create -f envs/full-pipe-spp.yml
 
 echo -e "Creating conda env for \e[32mMACS1.4\e[0m and \e[32mMACS2\e[0m"
-conda env create -f envs/full-pipe-macs.yml
+mamba env create -f envs/full-pipe-macs.yml
 
 
 echo -e "\e[33m#################################################\e[0m"
