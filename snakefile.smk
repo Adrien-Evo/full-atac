@@ -630,7 +630,7 @@ rule phantom_peak_qual:
     shell:
         """
         source activate full-pipe-spp
-        run_spp -c={input.bam} -savp -rf -p={threads} -odir={params}  -out={output} -tmpdir={params} 2> {log}
+        run_spp.R -c={input.bam} -savp -rf -p={threads} -odir={params}  -out={output} -tmpdir={params} 2> {log}
         """
 
 # Deeptools QC

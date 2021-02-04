@@ -3,7 +3,7 @@ PROJECT_NAME: 'GEO'
 
 # Path to a JSON file with samples and their corresponding FASTQ files.
 SAMPLES_JSON: './test/samplesGEO.json'
-OUTPUT_DIR: './test/GEOtest'
+OUTPUT_DIR: '/SCRATCH-BIRD/GEOtest'
 
 # Name of your input
 control: 'Input'
