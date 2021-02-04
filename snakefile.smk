@@ -42,14 +42,15 @@ SAMPLES_NAMES = sorted(FILES.keys())
 # Create sample_Marks list for all samples
 # e.g. Mousekidney01_H3K27, Mousekidney01_H3K27me3, Mouseliver04_H3K27, Mouseliver04_H3K27me3
 for sample in SAMPLES_NAMES:
-    for sample_type in FILES[sample].keys():
-        SAMPLE_MARK.append(sample + "_" + sample_type)
+    for mark_or_tf in FILES[sample].keys():
+        SAMPLE_MARK.append(sample + "_" + mark_or_tf)
 
 
 # Which sample_type is used as control for calling peaks: e.g. Input, IgG...
 CONTROL_NAME = config["control"]
 
-#  defining CASES samples  #
+#  defining CASES samples : can be CUTRUN or CHIPSEQ #
+
 CASES = [sample for sample in SAMPLE_MARK if CONTROL_NAME not in sample]
 
 
@@ -59,9 +60,9 @@ CASES = [sample for sample in SAMPLE_MARK if CONTROL_NAME not in sample]
 
 CUTRUN_MARK = []
 for sample in CUTRUN_SAMPLES:
-    for sample_type in FILES[sample].keys():
-        CUTRUN_MARK.append(sample + "_" + sample_type)
-print(CUTRUN_MARK)
+    for mark_or_tf in FILES[sample].keys():
+        CUTRUN_MARK.append(sample + "_" + mark_or_tf)
+
 
 # ======================================================== #
 # =========== Defining normal CHipSeqsamples ============= #
@@ -69,10 +70,8 @@ print(CUTRUN_MARK)
 CHIPSEQ_SAMPLES = [sample for sample in SAMPLES_NAMES if sample not in CUTRUN_SAMPLES]
 
 CHIPSEQ_MARK = [sample for sample in SAMPLE_MARK if sample not in CUTRUN_MARK]
-print(CHIPSEQ_MARK)
 
 CHIPSEQ_CASES = [sample for sample in CHIPSEQ_MARK if CONTROL_NAME not in sample]
-print(CHIPSEQ_MARK)
 
 # ======================================================== #
 # =========  Defining Control/Input samples   ============ #
@@ -115,6 +114,13 @@ CONTROL_SAMPLE_DICT = {}
 for key, value in controlFile.items():
     CONTROL_SAMPLE_DICT[key] = mergedInputDict[value]
 
+CONTROL_SAMPLE_MARK_DICT = {}
+for key, value in CONTROL_SAMPLE_DICT.items():
+    for samp in FILES[key].keys():
+        if CONTROL_NAME not in samp: 
+            CONTROL_SAMPLE_MARK_DICT[key + "_" + samp ]  = value
+
+
 # Flipping the flipped dictionary to have a link between generic input name and their corresponding fastq/Bam files. Splitting back the file name
 CONTROL_MERGED_FILES = {}
 for key, value in controlFileFlipped.items():
@@ -144,6 +150,20 @@ CONTROLS = list(CONTROL_MERGED_FILES.keys())
 # ~~~~~~~~~~~~~~ All samples ~~~~~~~~~~~~~~ #
 ALL_SAMPLES = CASES + CONTROLS
 ALL_CHIPSEQ = CHIPSEQ_CASES + CONTROLS
+
+
+# ======================================================== #
+# =========== Defining paired/single samples ============= #
+# ======================================================== #
+
+PAIRED_SAMPLES = []
+SINGLE_SAMPLES = []
+
+for samples, files in ALL_SAMPLE_FILES.items():
+    if 'R1' in files and 'R2' in files:
+        PAIRED_SAMPLES.append(samples)
+    else:
+        SINGLE_SAMPLES.append(samples)
 
 # ======================================================== #
 # ============= Creating helper dictionaries ============= #
@@ -216,9 +236,6 @@ print("MARKS     ", MARKS)
 print("MARKS_NO_CONTROL     ", MARKS_NO_CONTROL)
 print("MARKS_COMPLETE_NAME     ", MARKS_COMPLETE_NAME)
 print("CONTROL_SAMPLE_DICT     ",CONTROL_SAMPLE_DICT)
-print("CHIPSEQ_SAMPLE_DICT     ",CHIPSEQ_ALL_SAMPLES)
-print("CONTROL_SAMPLE_DICT     ",CONTROL_SAMPLE_DICT)
-
 
 
 ###########################################################################
@@ -261,19 +278,17 @@ ALL_NARROWPEAKCOUNTS = []
 ALL_ANNOTATED_PEAKS = []
 
 # going through all cases samples (sample_mark) #
-for case in CASES:
-    sample = "_".join(case.split("_")[0:-1])
-    control = CONTROL_SAMPLE_DICT[sample]
-    if control in CONTROLS:
-        ALL_PEAKS.append(os.path.join(WORKDIR, "peak_calling/macs1_narrow/{}-vs-{}-macs1-narrow_peaks.bed").format(case, control))
-        ALL_PEAKS.append(os.path.join(WORKDIR, "peak_calling/macs2_broad/{}-vs-{}-macs2_peaks.broadPeak").format(case, control))
-        ALL_PEAKS.append(os.path.join(WORKDIR, "peak_calling/macs2_narrow/{}-vs-{}-macs2_peaks.narrowPeak").format(case, control))
-        ALL_BIGWIG_INPUT.append(os.path.join(WORKDIR, "visualisation/bigwigs_with_control/{}-vs-{}.bw").format(case, control))
-        ALL_BIGBED.append(os.path.join(WORKDIR, "visualisation/bigbeds/{}-vs-{}-macs2_peaks.bb").format(case, control))
-        ALL_FEATURECOUNTS.append(os.path.join(WORKDIR, "QC/{}-vs-{}.FRiP.summary").format(case,control))
-        ALL_BROADPEAKCOUNTS.append(os.path.join(WORKDIR, "QC/{}-vs-{}-broadpeak-count_mqc.json").format(case,control))
-        ALL_NARROWPEAKCOUNTS.append(os.path.join(WORKDIR, "QC/{}-vs-{}-narrowpeak-count_mqc.json").format(case,control))
-        ALL_ANNOTATED_PEAKS.append(os.path.join(WORKDIR, "annotation/{}-vs-{}-peaks_annotated.txt").format(case,control))
+for key, value in CONTROL_SAMPLE_MARK_DICT.items():
+    ALL_PEAKS.append(os.path.join(WORKDIR, "peak_calling/macs1_narrow/{}-vs-{}-macs1-narrow_peaks.bed").format(key,value))
+    ALL_PEAKS.append(os.path.join(WORKDIR, "peak_calling/macs2_broad/{}-vs-{}-macs2_peaks.broadPeak").format(key,value))
+    ALL_PEAKS.append(os.path.join(WORKDIR, "peak_calling/macs2_narrow/{}-vs-{}-macs2_peaks.narrowPeak").format(key,value))
+    ALL_BIGWIG_INPUT.append(os.path.join(WORKDIR, "visualisation/bigwigs_with_control/{}-vs-{}.bw").format(key,value))
+    ALL_BIGBED.append(os.path.join(WORKDIR, "visualisation/bigbeds/{}-vs-{}-macs2_peaks.bb").format(key,value))
+    ALL_FEATURECOUNTS.append(os.path.join(WORKDIR, "QC/{}-vs-{}.FRiP.summary").format(key,value))
+    ALL_BROADPEAKCOUNTS.append(os.path.join(WORKDIR, "QC/{}-vs-{}-broadpeak-count_mqc.json").format(key,value))
+    ALL_NARROWPEAKCOUNTS.append(os.path.join(WORKDIR, "QC/{}-vs-{}-narrowpeak-count_mqc.json").format(key,value))
+    ALL_ANNOTATED_PEAKS.append(os.path.join(WORKDIR, "annotation/{}-vs-{}-peaks_annotated.txt").format(key,value))
+    
 # ~~~~~~~~~~~~~~~ Bam files ~~~~~~~~~~~~~~~ #
 CONTROL_BAM = expand(os.path.join(WORKDIR, "alignment/bams/{sample}.sorted.bam"), sample = CONTROL_MERGED_FILES)
 CASE_BAM = expand(os.path.join(WORKDIR, "alignment/bams/{sample}.sorted.bam"), sample = CASES)
