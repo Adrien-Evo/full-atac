@@ -165,6 +165,7 @@ for samples, files in ALL_SAMPLE_FILES.items():
     else:
         SINGLE_SAMPLES.append(samples)
 
+print("PAIRED      ", PAIRED_SAMPLES)
 # ======================================================== #
 # ============= Creating helper dictionaries ============= #
 # ======================================================== # 
@@ -229,15 +230,36 @@ for sample in sorted(FILES.keys()):
 for key, value in CONTROL_SAMPLE_DICT.items():
     MARKS_COMPLETE_NAME.setdefault(value, []).append(key)
 
+
+# Adding comptle file name for SINGLE and PAIRED end samples
+
+PAIRED_SAMPLES_DICT_FASTQ_R1 = {}
+PAIRED_SAMPLES_DICT_FASTQ_R2 = {}
+SINGLE_SAMPLES_DICT_FASTQ = {}
+
+for sample in PAIRED_SAMPLES :
+    PAIRED_SAMPLES_DICT_FASTQ_R1[sample] = ALL_SAMPLE_FILES[sample]['R1']
+    PAIRED_SAMPLES_DICT_FASTQ_R2[sample] = ALL_SAMPLE_FILES[sample]['R2']
+
+for sample in SINGLE_SAMPLES :
+    SINGLE_SAMPLES_DICT_FASTQ[sample] = ALL_SAMPLE_FILES[sample]
+
+FASTQ_NAME_WITH_SUFFIX = expand("{sample}", sample = SINGLE_SAMPLES)
+FASTQ_NAME_WITH_SUFFIX.extend(expand("{sample}_R1", sample = PAIRED_SAMPLES))
+FASTQ_NAME_WITH_SUFFIX.extend(expand("{sample}_R2", sample = PAIRED_SAMPLES))
+
+
 # Checking dict
-print("SAMPLES     ",ALL_SAMPLE_FILES)
+print("SAMPLES with full fastq path     ",ALL_SAMPLE_FILES)
 print("ALL_CONTROL     ", CONTROL_MERGED_FILES)
 print("MARKS     ", MARKS)
 print("MARKS_NO_CONTROL     ", MARKS_NO_CONTROL)
 print("MARKS_COMPLETE_NAME     ", MARKS_COMPLETE_NAME)
 print("CONTROL_SAMPLE_DICT     ",CONTROL_SAMPLE_DICT)
 
-
+print("R1 Paired SAMPLES with full fastq path     ",PAIRED_SAMPLES_DICT_FASTQ_R1)
+print("R2 Paired SAMPLES with full fastq path     ",PAIRED_SAMPLES_DICT_FASTQ_R2)
+print("Single end SAMPLES with full fastq path     ",SINGLE_SAMPLES_DICT_FASTQ)
 ###########################################################################
 ############################# Helper functions ############################
 ###########################################################################
@@ -297,8 +319,9 @@ ALL_BAM     = CONTROL_BAM + CASE_BAM
 
 # ~~ All samples files (cases + control) ~~ #
 ALL_DOWNSAMPLE_BAM = expand(os.path.join(WORKDIR, "alignment/downsampling/{sample}-downsample.sorted.bam"), sample = ALL_SAMPLES)
-ALL_FASTQ   = expand(os.path.join(WORKDIR, "alignment/{sample}.fastq"), sample = ALL_SAMPLES)
-ALL_FASTQC  = expand(os.path.join(WORKDIR, "QC/fastqc/{sample}_fastqc.zip"), sample = ALL_SAMPLES)
+ALL_FASTQ  = expand(os.path.join(WORKDIR, "alignment/fastq/{fname}.fastq.gz"), fname = FASTQ_NAME_WITH_SUFFIX)
+print(ALL_FASTQ)
+ALL_FASTQC  = expand(os.path.join(WORKDIR, "QC/fastqc/{fname}_fastqc.zip"), fname = FASTQ_NAME_WITH_SUFFIX)
 ALL_BOWTIE_LOG = expand(os.path.join(WORKDIR, "logs/{sample}.align"), sample = ALL_SAMPLES)
 ALL_INDEX = expand(os.path.join(WORKDIR, "alignment/bams/{sample}.sorted.bam.bai"), sample = ALL_SAMPLES)
 ALL_DOWNSAMPLE_INDEX = expand(os.path.join(WORKDIR, "downsampling/{sample}-downsample.sorted.bam.bai"), sample = ALL_SAMPLES)
@@ -373,7 +396,7 @@ TARGETS = []
 TARGETS.extend(ALL_ANNOTATED_PEAKS)
 TARGETS.extend(ALL_MULTIQC)
 TARGETS.extend(ALL_HUB)
-
+#print(ALL_MULTIQC_INPUT)
 # Since output from bam input are not used as input, needs to be put in the rule all for execution #
 if not BAM_INPUT:
     TARGETS.extend(ALL_CONFIG)
@@ -432,17 +455,16 @@ def get_bam_index_per_sample(wildcards):
 def get_all_marks_per_sample(wildcards):
     return SAMPLES_COMPLETE_NAME[wildcards.samp]
 
-# ~~~~~~ fastq files for sample_mark ~~~~~~ #
+# ~~~~~~~~ get fastq for single or paired end ~~~~~~~~ #
 def get_fastq(wildcards):
-    return ALL_SAMPLE_FILES[wildcards.sample]
+    output = []
+    if wildcards.sample in SINGLE_SAMPLES:
+        output = os.path.join(WORKDIR, "alignment/fastq/" + wildcards.sample + ".fastq.gz")
+    elif wildcards.sample in PAIRED_SAMPLES:
+        output.append(os.path.join(WORKDIR, "alignment/fastq/" + wildcards.sample + "_R1.fastq.gz"))
+        output.append(os.path.join(WORKDIR, "alignment/fastq/" + wildcards.sample + "_R2.fastq.gz"))
+    return output
 
-# ~~~~~~ fastq files for sample_mark ~~~~~~ #
-def get_fastq_single(wildcards):
-    return ALL_SAMPLE_FILES[wildcards.sample]
-
-# ~~~~~~ fastq files for sample_mark ~~~~~~ #
-def get_fastq_paired(wildcards):
-    return ALL_SAMPLE_FILES[wildcards.sample]
 
 # ~~~~~~~ bam files for sample_mark ~~~~~~~ #
 def get_bams(wildcards):
@@ -470,35 +492,64 @@ localrules: all
 
 rule all:
     input: TARGETS
+#rule all:
+#    input: ALL_BAM
+
+# Ordering rule for ambiguous cases for paired and single end management
+ruleorder: merge_fastqs_paired > merge_fastqs_single > fastqc
 
 ###########################################################################
 ######################### Alignement using BOWTIE2 ########################
 ###########################################################################
 
-# Those rules are only executed if inputs are fastq #
+# Those rules are only executed if inputs   are fastq #
 if BAM_INPUT == False:
 
     #Now only for single-end ChIPseq
-    rule merge_fastqs:
-        input: get_fastq
-        output: temp(os.path.join(WORKDIR, "alignment/{sample}.fastq"))
-        log: os.path.join(WORKDIR, "logs/{sample}.unzip")
-        shell: "gunzip -c {input} > {output} 2> {log}"
+    rule merge_fastqs_single:
+        input: lambda wildcards: SINGLE_SAMPLES_DICT_FASTQ[wildcards.sample]
+        output: temp(os.path.join(WORKDIR, "alignment/fastq/{sample}.fastq.gz"))
+        message: "Merging fastqs."
+        shell: 
+            """
+            cat -c {input} > {output} 2> {log}
+            """
 
+    rule merge_fastqs_paired:
+        input:
+            R1 = lambda wildcards: PAIRED_SAMPLES_DICT_FASTQ_R1[wildcards.sample],
+            R2 = lambda wildcards: PAIRED_SAMPLES_DICT_FASTQ_R2[wildcards.sample]
+        output:
+            R1 = temp(os.path.join(WORKDIR,"alignment/fastq/{sample}_R1.fastq.gz")),
+            R2 = temp(os.path.join(WORKDIR,"alignment/fastq/{sample}_R2.fastq.gz"))
+        message: "Merging fastqs."
+        shell:
+            """
+            cat {input.R1} > {output.R1}
+            cat {input.R2} > {output.R2}
+            """
 
     # Simple alignment with bowtie 2 followed by sorting #
     rule align:
-        input:  os.path.join(WORKDIR, "alignment/{sample}.fastq")
+        input:  get_fastq
         output: temp(os.path.join(WORKDIR, "alignment/raw-{sample}.bam"))
+        threads: 16
         log:    os.path.join(WORKDIR, "logs/{sample}.align")
+        params:
+            input= (
+                lambda wildcards, input: ["-U", input]
+                if wildcards.sample in SINGLE_SAMPLES
+                else ["-1", input[0], "-2", input[1]]
+                )
         shell:
             """
             source activate full-pipe-main-env
-            bowtie2 -p 8 -x {config[idx_bt2]} -q {input} 2> {log} \
+            bowtie2 -X 2000 --threads {threads} -x {config[idx_bt2]} {params.input} 2> {log} \
             | samblaster \
             | samtools view -bu `{CANONICAL_CHR}`\
             | samtools sort -m 8G -@ 4 -T {output}.tmp -o {output}
             """
+
 
     # Get the duplicates marked sorted bam, remove unmapped reads by samtools view -F 1804 #
     rule filter_alignment:
@@ -620,10 +671,11 @@ if BAM_INPUT == False:
             | awk 'BEGIN{{mt=0;m0=0;m1=0;m2=0;OFS="\t"}} ($1==1){{m1=m1+1}} ($1==2){{m2=m2+1}} {{m0=m0+1}} {{mt=mt+$1}} \
             END{{m1_m2=-1.0; if(m2>0) m1_m2=m1/m2; print "Sample Name","NRF","PBC1","PBC2"; print "{wildcards.sample}",m0/mt,m1/m0,m1_m2}}' > {output}
             """
+
     rule fastqc:
-        input:  os.path.join(WORKDIR, "alignment/{sample}.fastq")
-        output: os.path.join(WORKDIR, "QC/fastqc/{sample}_fastqc.zip"), os.path.join(WORKDIR, "QC/fastqc/{sample}_fastqc.html")
-        log:    os.path.join(WORKDIR, "logs/{sample}.fastqc")
+        input:  os.path.join(WORKDIR, "alignment/fastq/{fname}.fastq.gz")
+        output: os.path.join(WORKDIR, "QC/fastqc/{fname}_fastqc.zip"), os.path.join(WORKDIR, "QC/fastqc/{fname}_fastqc.html")
+        log:    os.path.join(WORKDIR, "logs/{fname}.fastqc")
         params:
             output_dir = os.path.join(WORKDIR, "QC/fastqc")
         shell:
