@@ -256,7 +256,7 @@ print("MARKS     ", MARKS)
 print("MARKS_NO_CONTROL     ", MARKS_NO_CONTROL)
 print("MARKS_COMPLETE_NAME     ", MARKS_COMPLETE_NAME)
 print("CONTROL_SAMPLE_DICT     ",CONTROL_SAMPLE_DICT)
-
+print("CONTROL_SAMPLE_MARK_DICT     ",CONTROL_SAMPLE_MARK_DICT)
 print("R1 Paired SAMPLES with full fastq path     ",PAIRED_SAMPLES_DICT_FASTQ_R1)
 print("R2 Paired SAMPLES with full fastq path     ",PAIRED_SAMPLES_DICT_FASTQ_R2)
 print("Single end SAMPLES with full fastq path     ",SINGLE_SAMPLES_DICT_FASTQ)
@@ -292,7 +292,6 @@ CANONICAL_CHR = get_chr(get_canonical_chromSize(GENOME_SIZE))
 
 # ~~~~~~ files with case and control ~~~~~~ #
 ALL_PEAKS = []
-ALL_BIGWIG_INPUT = []
 ALL_BIGBED = []
 ALL_FEATURECOUNTS = []
 ALL_BROADPEAKCOUNTS = []
@@ -300,16 +299,14 @@ ALL_NARROWPEAKCOUNTS = []
 ALL_ANNOTATED_PEAKS = []
 
 # going through all cases samples (sample_mark) #
-for key, value in CONTROL_SAMPLE_MARK_DICT.items():
-    ALL_PEAKS.append(os.path.join(WORKDIR, "peak_calling/macs1_narrow/{}-vs-{}-macs1-narrow_peaks.bed").format(key,value))
-    ALL_PEAKS.append(os.path.join(WORKDIR, "peak_calling/macs2_broad/{}-vs-{}-macs2_peaks.broadPeak").format(key,value))
-    ALL_PEAKS.append(os.path.join(WORKDIR, "peak_calling/macs2_narrow/{}-vs-{}-macs2_peaks.narrowPeak").format(key,value))
-    ALL_BIGWIG_INPUT.append(os.path.join(WORKDIR, "visualisation/bigwigs_with_control/{}-vs-{}.bw").format(key,value))
-    ALL_BIGBED.append(os.path.join(WORKDIR, "visualisation/bigbeds/{}-vs-{}-macs2_peaks.bb").format(key,value))
-    ALL_FEATURECOUNTS.append(os.path.join(WORKDIR, "QC/{}-vs-{}.FRiP.summary").format(key,value))
-    ALL_BROADPEAKCOUNTS.append(os.path.join(WORKDIR, "QC/{}-vs-{}-broadpeak-count_mqc.json").format(key,value))
-    ALL_NARROWPEAKCOUNTS.append(os.path.join(WORKDIR, "QC/{}-vs-{}-narrowpeak-count_mqc.json").format(key,value))
-    ALL_ANNOTATED_PEAKS.append(os.path.join(WORKDIR, "annotation/{}-vs-{}-peaks_annotated.txt").format(key,value))
+for sample_mark in CASES:
+    ALL_PEAKS.append(os.path.join(WORKDIR, "peak_calling/macs2_broad/{}-macs2_peaks.broadPeak").format(sample_mark))
+    #ALL_PEAKS.append(os.path.join(WORKDIR, "peak_calling/macs2_narrow/{}-macs2_peaks.narrowPeak").format(sample_mark))
+    ALL_BIGBED.append(os.path.join(WORKDIR, "visualisation/bigbeds/{}-macs2_peaks.bb").format(sample_mark))
+    ALL_FEATURECOUNTS.append(os.path.join(WORKDIR, "QC/{}.FRiP.summary").format(sample_mark))
+    ALL_BROADPEAKCOUNTS.append(os.path.join(WORKDIR, "QC/{}-broadpeak-count_mqc.json").format(sample_mark))
+    ALL_NARROWPEAKCOUNTS.append(os.path.join(WORKDIR, "QC/{}-narrowpeak-count_mqc.json").format(sample_mark))
+    ALL_ANNOTATED_PEAKS.append(os.path.join(WORKDIR, "annotation/{}-peaks_annotated.txt").format(sample_mark))
     
 # ~~~~~~~~~~~~~~~ Bam files ~~~~~~~~~~~~~~~ #
 CONTROL_BAM = expand(os.path.join(WORKDIR, "alignment/bams/{sample}.sorted.bam"), sample = CONTROL_MERGED_FILES)
@@ -330,6 +327,9 @@ ALL_PHANTOM = expand(os.path.join(WORKDIR, "QC/phantompeakqualtools/{sample}.spp
 ALL_BIGWIG = expand(os.path.join(WORKDIR, "visualisation/bigwigs/{sample}.bw"), sample = ALL_SAMPLES)
 ALL_ENCODE = expand(os.path.join(WORKDIR, "QC/{sample}.encodeQC.txt"), sample = ALL_SAMPLES)
 
+# ~~ Just sample with control ~~ #
+
+ALL_BIGWIG_INPUT = expand(os.path.join(WORKDIR, "visualisation/bigwigs_with_control/{casewithcontrol}.bw"), casewithcontrol = CONTROL_SAMPLE_MARK_DICT)
 
 # ~~~~~~~~~~~ Deeptools specific ~~~~~~~~~~ #
 # ---- Grouped by marks ---- #
@@ -395,7 +395,7 @@ else:
 TARGETS = []
 TARGETS.extend(ALL_ANNOTATED_PEAKS)
 TARGETS.extend(ALL_MULTIQC)
-TARGETS.extend(ALL_HUB)
+#TARGETS.extend(ALL_HUB)
 #print(ALL_MULTIQC_INPUT)
 # Since output from bam input are not used as input, needs to be put in the rule all for execution #
 if not BAM_INPUT:
@@ -472,17 +472,33 @@ def get_bams(wildcards):
 
 # ~~~~~~~ peak sets per marks or tf ~~~~~~~ #
 def get_peaks(wildcards):
+    print(wildcards.case)
     for key, value in MARKS_COMPLETE_NAME.items():
         if any(wildcards.case in sample_mark for sample_mark in MARKS_COMPLETE_NAME[key]):
             if key in NARROW_BROAD:
                 if(NARROW_BROAD[key] == 'narrow'):
-                    return os.path.join(WORKDIR, "peak_calling/macs1_narrow/" + wildcards.case + "-vs-" + wildcards.control + "-macs1-narrow_peaks.bed")
+                    return os.path.join(WORKDIR, "peak_calling/macs2_narrow/" + wildcards.case + "-macs2_peaks.narrowPeak")
                 elif(NARROW_BROAD[key] == 'broad'):
-                    return os.path.join(WORKDIR, "peak_calling/macs2_broad/" + wildcards.case + "-vs-" + wildcards.control + "-macs2_peaks.broadPeak")
+                    return os.path.join(WORKDIR, "peak_calling/macs2_broad/" + wildcards.case + "-macs2_peaks.broadPeak")
             else:
                 logger.warning("Marks or TF not in the {} for {}. Will work with narrow peaks".format(config['narrow_broad'],wildcards.case))
-                return os.path.join(WORKDIR, "peak_calling/macs1_narrow/" + wildcards.case + "-vs-" + wildcards.control + "-macs1-narrow_peaks.bed")
+                return os.path.join(WORKDIR, "peak_calling/macs2_narrow/" + wildcards.case + "-macs2_peaks.narrowPeak")
 
+
+
+
+def get_control_downsampled_bais(wildcards):
+    return os.path.join(WORKDIR, "alignment/downsampling/"+ CONTROL_SAMPLE_MARK_DICT[wildcards.case] + "-downsample.sorted.bam.bai"),
+
+def get_control_downsampled_bams_with_input(wildcards):
+    return os.path.join(WORKDIR, "alignment/downsampling/"+ CONTROL_SAMPLE_MARK_DICT[wildcards.casewithcontrol] + "-downsample.sorted.bam"),
+
+def get_control_downsampled_bais_with_input(wildcards):
+    return os.path.join(WORKDIR, "alignment/downsampling/"+ CONTROL_SAMPLE_MARK_DICT[wildcards.casewithcontrol] + "-downsample.sorted.bam.bai"),
+
+
+
+print(ALL_BIGWIG_INPUT)
 ###########################################################################
 ################################# rule all ################################
 ###########################################################################
@@ -493,7 +509,7 @@ localrules: all
 rule all:
     input: TARGETS
 #rule all:
-#    input: ALL_BAM
+#    input: ALL_PEAKS
 
 # Ordering rule for ambiguous cases for paired and single end management
 ruleorder: merge_fastqs_paired > merge_fastqs_single > fastqc
@@ -512,7 +528,7 @@ if BAM_INPUT == False:
         message: "Merging fastqs."
         shell: 
             """
-            cat -c {input} > {output} 2> {log}
+            cat {input} > {output}
             """
 
     rule merge_fastqs_paired:
@@ -534,7 +550,9 @@ if BAM_INPUT == False:
         input:  get_fastq
         output: temp(os.path.join(WORKDIR, "alignment/raw-{sample}.bam"))
         threads: 16
-        log:    os.path.join(WORKDIR, "logs/{sample}.align")
+        log:    
+            bowtie = os.path.join(WORKDIR, "logs/{sample}.align"),
+            samblaster = os.path.join(WORKDIR, "logs/{sample}.samblaster.log")
         params:
             input= (
                 lambda wildcards, input: ["-U", input]
@@ -544,8 +562,8 @@ if BAM_INPUT == False:
         shell:
             """
             source activate full-pipe-main-env
-            bowtie2 -X 2000 --threads {threads} -x {config[idx_bt2]} {params.input} 2> {log} \
-            | samblaster \
+            bowtie2 --threads {threads} -x {config[idx_bt2]} {params.input} 2> {log.bowtie} \
+            | samblaster --ignoreUnmated 2> {log.samblaster}\
             | samtools view -bu `{CANONICAL_CHR}`\
             | samtools sort -m 8G -@ 4 -T {output}.tmp -o {output}
             """
@@ -645,7 +663,7 @@ rule down_sample:
     threads: 4
     params: 
     log: os.path.join(WORKDIR, "logs/{sample}.phantompeakqual.log")
-    message: "downsampling for {input}"
+    message: "downsampling for {sample}"
     shell:
         """
         source activate full-pipe-main-env
@@ -802,10 +820,10 @@ rule get_FRiP_for_multiqc:
         peaks = get_peaks,
         bam = os.path.join(WORKDIR, "alignment/bams/{case}.sorted.bam"), 
     output:
-        os.path.join(WORKDIR, "QC/{case}-vs-{control}.FRiP.summary")
+        os.path.join(WORKDIR, "QC/{case}.FRiP.summary")
     params:
         saf = os.path.join(WORKDIR, "QC/{case}.saf"),
-        outputName = os.path.join(WORKDIR, "QC/{case}-vs-{control}.FRiP")
+        outputName = os.path.join(WORKDIR, "QC/{case}.FRiP")
     shell:
         """
         source activate full-pipe-main-env
@@ -815,9 +833,9 @@ rule get_FRiP_for_multiqc:
 
 rule get_broad_peak_counts_for_multiqc:
     input:
-        peaks = os.path.join(WORKDIR, "peak_calling/macs2_broad/{case}-vs-{control}-macs2_peaks.broadPeak"),
+        peaks = os.path.join(WORKDIR, "peak_calling/macs2_broad/{case}-macs2_peaks.broadPeak"),
     output:
-        os.path.join(WORKDIR, "QC/{case}-vs-{control}-broadpeak-count_mqc.json")
+        os.path.join(WORKDIR, "QC/{case}-broadpeak-count_mqc.json")
     params:
         peakType = "broadPeak"
     shell:
@@ -828,9 +846,9 @@ rule get_broad_peak_counts_for_multiqc:
 
 rule get_narrow_peak_counts_for_multiqc:
     input:
-        peaks = os.path.join(WORKDIR, "peak_calling/macs1_narrow/{case}-vs-{control}-macs1-narrow_peaks.bed"),
+        peaks = os.path.join(WORKDIR, "peak_calling/macs2_narrow/{case}-macs2_peaks.narrowPeak"),
     output:
-        os.path.join(WORKDIR, "QC/{case}-vs-{control}-narrowpeak-count_mqc.json")
+        os.path.join(WORKDIR, "QC/{case}-narrowpeak-count_mqc.json")
     params:
         peakType = "narrowPeak"
     shell:
@@ -844,100 +862,122 @@ rule get_narrow_peak_counts_for_multiqc:
 ############################### PEAK CALLING ##############################
 ###########################################################################
 
-# Peak calling using MACS
-rule call_narrow_peaks_macs1:
-    input: 
-        control = os.path.join(WORKDIR, "alignment/downsampling/{control}-downsample.sorted.bam"), 
-        case = os.path.join(WORKDIR, "alignment/downsampling/{case}-downsample.sorted.bam"),
-        spp = os.path.join(WORKDIR, "QC/phantompeakqualtools/{case}.spp.out")
-    output:
-        os.path.join(WORKDIR, "peak_calling/macs1_narrow/{case}-vs-{control}-macs1-narrow_peaks.bed")
-    log:
-        macs1_nomodel = os.path.join(WORKDIR, "logs/{case}-vs-{control}-call-peaks-macs1-nomodel.log")
-    params:
-        name = "{case}-vs-{control}-macs1-narrow",
-        jobname = "{case}", 
-        outdir = os.path.join(WORKDIR, "peak_calling/macs1_narrow/")
-    message: "Calling narrow peaks with macs14."
+
+# Creating a bedpe file for MACS2 peak calling
+rule bedpe:
+    input:  
+        bam = os.path.join(WORKDIR, "alignment/bams/{sample}.sorted.bam"),
+        bai = os.path.join(WORKDIR, "alignment/bams/{sample}.sorted.bam.bai")
+    output: 
+        bedpe = os.path.join(WORKDIR, "alignment/bams/{sample}.shifted.bedpe")
+    threads: 8
+    log:    os.path.join(WORKDIR, "logs/{sample}.bedpe.log")
     shell:
         """
-        source activate full-pipe-macs
-        # nomodel with shiftsize half of the estimated fragment length from phantompeakqual.
-        macs -t {input.case} \
-            -c {input.control} --keep-dup all -f BAM -g {config[macs_g]} \
-            --outdir {params.outdir} -n {params.name} --shiftsize `cut -f3 {input.spp} | awk 'BEGIN{{FS=","}}{{printf "%.0f",($1+1)/2}}'` --nomodel -p {config[macs_pvalue]} &> {log.macs1_nomodel}
+        source activate full-pipe-main-env
+        alignmentSieve --bam {input.bam} --numberOfProcessors {threads}  --BED --outFile {output.bedpe}
         """
-        
+
+def get_macs2_broad_input(wildcards):
+    
+    input_for_macs2_broad = []
+    #Checking if paired or not
+    if wildcards.case in PAIRED_SAMPLES :
+        input_for_macs2_broad.append(os.path.join(WORKDIR, "alignment/bams/" + wildcards.case + ".shifted.bedpe"))
+        #Checking if sample has a control
+        if wildcards.case in CONTROL_SAMPLE_MARK_DICT.keys() :
+            input_for_macs2_broad.append(os.path.join(WORKDIR, "alignment/bams/"+ CONTROL_SAMPLE_MARK_DICT[wildcards.case] + ".shifted.bedpe"))
+    else:
+        input_for_macs2_broad.append(os.path.join(WORKDIR, "alignment/downsampling/" + wildcards.case + "-downsample.sorted.bam"))
+        #Checking if sample has a control
+        if wildcards.case in CONTROL_SAMPLE_MARK_DICT.keys() :
+            input_for_macs2_broad.append(os.path.join(WORKDIR, "alignment/downsampling/"+ CONTROL_SAMPLE_MARK_DICT[wildcards.case] + "-downsample.sorted.bam"))
+    
+    return input_for_macs2_broad
+
+
 # Peak calling using MACS 2
 rule call_broad_peaks_macs2:
-    input: 
-        control = os.path.join(WORKDIR, "alignment/downsampling/{control}-downsample.sorted.bam"), 
-        case = os.path.join(WORKDIR, "alignment/downsampling/{case}-downsample.sorted.bam"),
-        spp = os.path.join(WORKDIR, "QC/phantompeakqualtools/{case}.spp.out")
+    input: get_macs2_broad_input
     output:
-        broad = os.path.join(WORKDIR, "peak_calling/macs2_broad/{case}-vs-{control}-macs2_peaks.broadPeak")
-    log: os.path.join(WORKDIR, "logs/{case}-vs-{control}-call-peaks_macs2.log")
+        broad = os.path.join(WORKDIR, "peak_calling/macs2_broad/{case}-macs2_peaks.broadPeak")
+    log: os.path.join(WORKDIR, "logs/{case}-call-peaks_macs2.log")
     params:
-        name = "{case}-vs-{control}-macs2", 
-        jobname = "{case}", 
-        outdir = os.path.join(WORKDIR, "peak_calling/macs2_broad")
+        name = "{case}-macs2", 
+        outdir = os.path.join(WORKDIR, "peak_calling/macs2_broad"),
+        control = (
+            lambda wildcards, input: ["-c", input[1]]
+            if wildcards.case in CONTROL_SAMPLE_MARK_DICT
+            else [""]
+        ),
+        format = (
+            lambda wildcards: ["BAM"]
+            if wildcards.case in SINGLE_SAMPLES
+            else ["BAMPE"]
+        )
     message: "Calling broadpeaks with macs2."
     shell:
         """
         source activate full-pipe-macs
-        ## for macs2, when nomodel is set, --extsize is default to 200bp, this is the same as 2 * shift-size in macs14.
-        macs2 callpeak -t {input.case} \
-            -c {input.control} --keep-dup all -f BAM -g {config[macs2_g]} \
-            --outdir {params.outdir} -n {params.name} --extsize `cut -f3 {input.spp} | awk 'BEGIN{{FS=","}}{{print $1}}'` -p {config[macs2_pvalue]} --broad --broad-cutoff {config[macs2_pvalue_broad_cutoff]} --nomodel &> {log}
+        macs2 callpeak -t {input[0]} \
+            {params.control} --keep-dup all -f {params.format} -g {config[macs2_g]} \
+            --outdir {params.outdir} -n {params.name} -p {config[macs2_pvalue]} --broad --broad-cutoff {config[macs2_pvalue_broad_cutoff]} &> {log}
         """
+
 
 # Peak calling using MACS 2
 rule call_narrow_peaks_macs2:
     input: 
-        control = os.path.join(WORKDIR, "alignment/downsampling/{control}-downsample.sorted.bam"), 
-        case = os.path.join(WORKDIR, "alignment/downsampling/{case}-downsample.sorted.bam"),
-        spp = os.path.join(WORKDIR, "QC/phantompeakqualtools/{case}.spp.out")
+        get_macs2_broad_input
     output:
-        narrow = os.path.join(WORKDIR, "peak_calling/macs2_narrow/{case}-vs-{control}-macs2_peaks.narrowPeak")
-    log: os.path.join(WORKDIR, "logs/{case}-vs-{control}-call-narrowpeaks_macs2.log")
+        narrow = os.path.join(WORKDIR, "peak_calling/macs2_narrow/{case}-macs2_peaks.narrowPeak")
+    log: os.path.join(WORKDIR, "logs/{case}-call-narrowpeaks_macs2.log")
     params:
-        name = "{case}-vs-{control}-macs2", 
+        name = "{case}-macs2", 
         jobname = "{case}", 
-        outdir = os.path.join(WORKDIR, "peak_calling/macs2_narrow")
+        outdir = os.path.join(WORKDIR, "peak_calling/macs2_narrow"),
+        control = (
+            lambda wildcards, input: ["-c", input[1]]
+            if wildcards.case in CONTROL_SAMPLE_MARK_DICT
+            else [""]
+        ),
+        format = (
+            lambda wildcards: ["BAM"]
+            if wildcards.case in SINGLE_SAMPLES
+            else ["BAMPE"]
+        )
     message: "Calling broadpeaks with macs2."
     shell:
         """
         source activate full-pipe-macs
-        ## for macs2, when nomodel is set, --extsize is default to 200bp, this is the same as 2 * shift-size in macs14.
-        macs2 callpeak -t {input.case} \
-            -c {input.control} --keep-dup all -f BAM -g {config[macs2_g]} \
-            --outdir {params.outdir} -n {params.name} --extsize `cut -f3 {input.spp} | awk 'BEGIN{{FS=","}}{{print $1}}'` -p {config[macs2_pvalue]} --nomodel &> {log}
+        macs2 callpeak -t {input[0]} \
+            {params.control} --keep-dup all -f {params.format} -g {config[macs2_g]} \
+            --outdir {params.outdir} -n {params.name} &> {log}
         """
 
 
 ###########################################################################
 ####### VISUALIZATION bigWig and bigBed generation and HUB creation #######
 ###########################################################################
-
-rule get_bigwigs_using_inputs:
-    input : 
-        case =  os.path.join(WORKDIR, "alignment/downsampling/{case}-downsample.sorted.bam"),
-        bai_case = os.path.join(WORKDIR, "alignment/downsampling/{case}-downsample.sorted.bam.bai"),
-        control = os.path.join(WORKDIR, "alignment/downsampling/{control}-downsample.sorted.bam"), 
-        bai_control = os.path.join(WORKDIR, "alignment/downsampling/{control}-downsample.sorted.bam.bai"),
-        spp = os.path.join(WORKDIR, "QC/phantompeakqualtools/{case}.spp.out")
-    output:  os.path.join(WORKDIR, "visualisation/bigwigs_with_control/{case}-vs-{control}.bw")
-    log: os.path.join(WORKDIR, "logs/{case}-vs-{control}.makebw")
-    threads: 4
-    params: jobname = "{case}"
-    message: "Making bigwig of {case} log2 fold change versus {control}"
-    shell:
-        """
-        source activate full-pipe-main-env
-        bamCompare --bamfile1 {input.case} --bamfile2 {input.control} \
-        --normalizeUsing RPKM  --operation log2 --operation first --scaleFactorsMethod None --binSize 30 --smoothLength 150 --numberOfProcessors {threads} \
-        --extendReads `cut -f3 {input.spp} | awk 'BEGIN{{FS=","}}{{print $1}}'` -o {output} 2> {log}
-        """
+# rule get_bigwigs_using_inputs:
+#     input : 
+#         case =  os.path.join(WORKDIR, "alignment/downsampling/{casewithcontrol}-downsample.sorted.bam"),
+#         bai_case = os.path.join(WORKDIR, "alignment/downsampling/{casewithcontrol}-downsample.sorted.bam.bai"),
+#         control = get_control_downsampled_bams_with_input, 
+#         bai_control = get_control_downsampled_bais_with_input,
+#         spp = os.path.join(WORKDIR, "QC/phantompeakqualtools/{casewithcontrol}.spp.out")
+#     output:  os.path.join(WORKDIR, "visualisation/bigwigs_with_control/{casewithcontrol}.bw")
+#     log: os.path.join(WORKDIR, "logs/{casewithcontrol}.makebw")
+#     threads: 4
+#     params: jobname = "{casewithcontrol}"
+#     message: "Making bigwig of {casewithcontrol} log2 fold change versus its control"
+#     shell:
+#         """
+#         source activate full-pipe-main-env
+#         bamCompare --bamfile1 {input.case} --bamfile2 {input.control} \
+#         --normalizeUsing RPKM  --operation log2 --operation first --scaleFactorsMethod None --binSize 30 --smoothLength 150 --numberOfProcessors {threads} \
+#         --extendReads `cut -f3 {input.spp} | awk 'BEGIN{{FS=","}}{{print $1}}'` -o {output} 2> {log}
+#         """
 
 rule get_bigwigs:
     input : 
@@ -959,9 +999,9 @@ rule get_bigwigs:
 # Cleaning peaks by taking only columns 1, 2, 3 because narrowpeaks and broadpeaks are different.
 rule get_bigbeds:
     input: get_peaks
-    output: os.path.join(WORKDIR, "visualisation/bigbeds/{case}-vs-{control}-macs2_peaks.bb")
+    output: os.path.join(WORKDIR, "visualisation/bigbeds/{case}-macs2_peaks.bb")
     params : 
-        bed1 = temp(os.path.join(WORKDIR, "visualisation/bigbeds/{case}-vs-{control}-macs2_peaks_temp.bed"))
+        bed1 = temp(os.path.join(WORKDIR, "visualisation/bigbeds/{case}-macs2_peaks_temp.bed"))
     shell:
         """
         source activate full-pipe-main-env
@@ -969,24 +1009,24 @@ rule get_bigbeds:
         scripts/bedToBigBed {params.bed1} {GENOME_SIZE} {output} -type=bed3
         """
 
-# Creating a Hub for UCSC
-rule get_UCSC_hub:
-    input:  
-        bed = ALL_BIGBED, 
-        bigwig = ALL_BIGWIG_INPUT
-    output:
-        ALL_HUB
-    log: os.path.join(WORKDIR, "logs/log.trackhub")
-    params:
-        output_dir = HUB_FOLDER, 
-        sample_name = list(SAMPLES.keys()), 
-        categories = MARKS_NO_CONTROL
-    shell:
-        """
-        source activate full-pipe-main-env
-        python3 scripts/makeUCSCtrackHub.py --hub_name {PROJECT_NAME} --sample_name {params.sample_name} --categories {params.categories} \
-        --output_dir {params.output_dir} --peaks {input.bed} --bw {input.bigwig} 2> {log}
-        """
+# # Creating a Hub for UCSC
+# rule get_UCSC_hub:
+#     input:  
+#         bed = ALL_BIGBED, 
+#         bigwig = ALL_BIGWIG_INPUT
+#     output:
+#         ALL_HUB
+#     log: os.path.join(WORKDIR, "logs/log.trackhub")
+#     params:
+#         output_dir = HUB_FOLDER, 
+#         sample_name = list(SAMPLES.keys()), 
+#         categories = MARKS_NO_CONTROL
+#     shell:
+#         """
+#         source activate full-pipe-main-env
+#         python3 scripts/makeUCSCtrackHub.py --hub_name {PROJECT_NAME} --sample_name {params.sample_name} --categories {params.categories} \
+#         --output_dir {params.output_dir} --peaks {input.bed} --bw {input.bigwig} 2> {log}
+#         """
 
 ########################################################################### 
 ################################# MULTIQC #################################
@@ -1024,13 +1064,13 @@ rule multiQC:
 # Annotation with homer
 rule homer_annotate:
     input: 
-        peaks = get_peaks 
+        peaks = get_peaks
     output:
-        annotated_peaks = os.path.join(WORKDIR, "annotation/{case}-vs-{control}-peaks_annotated.txt")
+        annotated_peaks = os.path.join(WORKDIR, "annotation/{case}-peaks_annotated.txt")
     params:
         genome = GENOME_FASTA, 
         gtf = GENOME_GTF
-    log: os.path.join(WORKDIR,"logs/{case}-vs-{control}-homer-annotated.log")
+    log: os.path.join(WORKDIR,"logs/{case}-homer-annotated.log")
     message: "Annotating peak files with HOMER"
     shell:
         """
