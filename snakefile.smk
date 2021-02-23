@@ -863,30 +863,16 @@ rule get_narrow_peak_counts_for_multiqc:
 ###########################################################################
 
 
-# Creating a bedpe file for MACS2 peak calling
-rule bedpe:
-    input:  
-        bam = os.path.join(WORKDIR, "alignment/bams/{sample}.sorted.bam"),
-        bai = os.path.join(WORKDIR, "alignment/bams/{sample}.sorted.bam.bai")
-    output: 
-        bedpe = os.path.join(WORKDIR, "alignment/bams/{sample}.shifted.bedpe")
-    threads: 8
-    log:    os.path.join(WORKDIR, "logs/{sample}.bedpe.log")
-    shell:
-        """
-        source activate full-pipe-main-env
-        alignmentSieve --bam {input.bam} --numberOfProcessors {threads}  --BED --outFile {output.bedpe}
-        """
 
 def get_macs2_broad_input(wildcards):
     
     input_for_macs2_broad = []
     #Checking if paired or not
     if wildcards.case in PAIRED_SAMPLES :
-        input_for_macs2_broad.append(os.path.join(WORKDIR, "alignment/bams/" + wildcards.case + ".shifted.bedpe"))
+        input_for_macs2_broad.append(os.path.join(WORKDIR, "alignment/downsampling/" + wildcards.case + "-downsample.sorted.bam"))
         #Checking if sample has a control
         if wildcards.case in CONTROL_SAMPLE_MARK_DICT.keys() :
-            input_for_macs2_broad.append(os.path.join(WORKDIR, "alignment/bams/"+ CONTROL_SAMPLE_MARK_DICT[wildcards.case] + ".shifted.bedpe"))
+            input_for_macs2_broad.append(os.path.join(WORKDIR, "alignment/downsampling/"+ CONTROL_SAMPLE_MARK_DICT[wildcards.case] + "-downsample.sorted.bam"))
     else:
         input_for_macs2_broad.append(os.path.join(WORKDIR, "alignment/downsampling/" + wildcards.case + "-downsample.sorted.bam"))
         #Checking if sample has a control
