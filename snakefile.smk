@@ -59,9 +59,9 @@ CASES = [sample for sample in SAMPLE_MARK if CONTROL_NAME not in sample]
 # ======================================================== #
 
 CUTRUN_MARK = []
-for sample in CUTRUN_SAMPLES:
-    for mark_or_tf in FILES[sample].keys():
-        CUTRUN_MARK.append(sample + "_" + mark_or_tf)
+#for sample in CUTRUN_SAMPLES:
+#    for mark_or_tf in FILES[sample].keys():
+#        CUTRUN_MARK.append(sample + "_" + mark_or_tf)
 
 
 # ======================================================== #
@@ -89,7 +89,6 @@ for samp in CHIPSEQ_MARK:
 #Checking if control has been found:
 if not bool(controlFile):
     logger.warning("Can't file any controls/input named " + CONTROL_NAME + ". Exiting")
-    exit()
 
 # Finding duplicate values from controlFile by flipping the dictionary
 controlFileFlipped = {} 
@@ -135,10 +134,10 @@ for case in CHIPSEQ_CASES:
     CHIPSEQ_SAMPLE_FILES[case] = FILES[sample][mark]
 
 CUTRUN_SAMPLE_FILES = {}
-for case in CUTRUN_MARK:
-    sample = "_".join(case.split("_")[0:-1])
-    mark = case.split("_")[-1]
-    CUTRUN_SAMPLE_FILES[case] = FILES[sample][mark]
+#for case in CUTRUN_MARK:
+#    sample = "_".join(case.split("_")[0:-1])
+#    mark = case.split("_")[-1]
+#    CUTRUN_SAMPLE_FILES[case] = FILES[sample][mark]
 
 
 
@@ -183,7 +182,8 @@ print(CONTROL_SAMPLE_DICT)
 print(SAMPLES)
 # Adding the proper merged input to the marks of each samples
 for sample in CHIPSEQ_SAMPLES:
-    SAMPLES.setdefault(sample,[]).append(CONTROL_SAMPLE_DICT[sample])
+    if sample in CONTROL_SAMPLE_DICT.keys():
+        SAMPLES.setdefault(sample,[]).append(CONTROL_SAMPLE_DICT[sample])
 
 # ~~~~~~~~~~~ Samples_name dict ~~~~~~~~~~~ #
 
@@ -197,7 +197,8 @@ for sample in sorted(FILES.keys()):
 
 # Adding the proper merged input to the marks of each samples
 for sample in CHIPSEQ_SAMPLES:
-    SAMPLES_COMPLETE_NAME.setdefault(sample,[]).append(CONTROL_SAMPLE_DICT[sample])
+    if sample in CONTROL_SAMPLE_DICT.keys():
+        SAMPLES_COMPLETE_NAME.setdefault(sample,[]).append(CONTROL_SAMPLE_DICT[sample])
 
 # ~~~~~~~~~~~~~~ Marks dicts ~~~~~~~~~~~~~~ #
 
