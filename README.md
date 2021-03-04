@@ -79,18 +79,18 @@ The metrics are described in more details in the QC part of the documentation
 * <span style="color:green">rule </span> <span style="color:yellow"> phantom_peak_qual</span>: phantompeakqualtools is used to compute its metrics and the fragment length for MACS2 peak calling.
 * <span style="color:green">rule </span> <span style="color:yellow"> computeMatrix_QC</span>: This comes from the [deepTools](https://deeptools.readthedocs.io/en/develop/content/list_of_tools.html) suite of tools. A necessary step to compute plotProfile and plotHeatmap. The mode used here is reference point, using the Transcription Start Site (TSS) from genes downloaded from the ensemble annotation. Youc an use anything you want here, just put in the the GENOME_TSS part of the config file.
 * <span style="color:green">rule </span> <span style="color:yellow"> plotHeatmap</span>: plotHeatmap from deepTools, centered around the GENOME_TSS points, for each mark or TF. The profile on top of the heatmap has a scale problem at the moment. 
-* <span style="color:green">rule </span> <span style="color:yellow"> plotProfile</span>: deepTools plotProfile. Plots are grouped by mark or TF, but you'll find everything together in the multiQC report.
+* <span style="color:green">rule </span> <span style="color:yellow"> plotProfile</span>: deepTools plotProfile. You'll find everything together in the multiQC report.
 * <span style="color:green">rule </span> <span style="color:yellow"> plotFingerPrint</span>: deepTools plotFingerPrint. This gives you all the metrics for the chromosome 1. There is one plot per sample with all its marks or TF, but you'll find everything together in the multiQC report.
-* <span style="color:green">rule </span> <span style="color:yellow"> get_FRiP_for_multiqc</span>: Fraction of reads in peak using the featureCOunts module of subRead. This will use the appropriate peaks (narrow or broad) and the filtered bams
+* <span style="color:green">rule </span> <span style="color:yellow"> all_multiBigwigSummary and all_plotCorrelation</span>: Using the multibigwigsummary of deeptools for chr1 to compute the correlation between of read counts between all samples.
+* <span style="color:green">rule </span> <span style="color:yellow"> get_FRiP_for_multiqc</span>: Fraction of reads in peak using the featureCounts module of subRead. This will use the appropriate peaks (narrow or broad) and the filtered bams
 * <span style="color:green">rule </span> <span style="color:yellow"> get_broad_peak_counts_for_multiqc</span>: A simple extraction of broad peak counts with a python script to create custome data for MultiQC.
 * <span style="color:green">rule </span> <span style="color:yellow"> get_narrow_peak_counts_for_multiqc</span>:  simple extraction of narrow peak counts with a python script to create custome data for MultiQC.
 
 ## Peak calling
-Details of the overall peak calling strategy is int he Peak calling strategies
+Details of the overall peak calling strategy is in the Peak calling strategies
 
-* <span style="color:green">rule </span> <span style="color:yellow"> call_narrow_peaks_macs1</span>: MACS1 narrow peak calling with shitsize from the phantompeaqualtools estimation, nomodel (no fragment length estimation) with the p-value from the config files macs_pvalue.
-* <span style="color:green">rule </span> <span style="color:yellow"> call_narrow_peaks_macs2</span>: MACS2 narrow peak calling with extsize ( shiftsize in MACS1) from the phantompeaqualtools estimation, nomodel  (no fragment length estimation) and p-value from the config file macs2_pvalue.
-* <span style="color:green">rule </span> <span style="color:yellow"> call_broad_peaks_macs2</span>: MACS2 broad peak calling with extsize ( shiftsize in MACS1) from the phantompeaqualtools estimation, nomodel  (no fragment length estimation) and p-value from the config file macs2_pvalue and the broad peak cutoff from the config file macs2_pvalue_broad_cutoff.
+* <span style="color:green">rule </span> <span style="color:yellow"> call_narrow_peaks_macs2</span>: MACS2 narrow peak calling p-value from the config file macs2_pvalue.
+* <span style="color:green">rule </span> <span style="color:yellow"> call_broad_peaks_macs2</span>: MACS2 broad peak calling with p-value from the config file macs2_pvalue and the broad peak cutoff from the config file macs2_pvalue_broad_cutoff.
 
 ## Visualization
 Those steps will ultimately create a HUB that can be used on the UCSC genome browser

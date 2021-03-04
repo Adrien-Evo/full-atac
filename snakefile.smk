@@ -85,7 +85,7 @@ for samp in CHIPSEQ_MARK:
         sample = "".join(samp.split("_")[0:-1])
         #Here mark should contain the Input name
         mark = samp.split("_")[-1]
-        controlFile[sample] = "".join(FILES[sample][mark])
+        controlFile[sample] = " ".join(FILES[sample][mark])
 #Checking if control has been found:
 if not bool(controlFile):
     logger.warning("Can't file any controls/input named " + CONTROL_NAME + ". Exiting")
@@ -164,7 +164,6 @@ for samples, files in ALL_SAMPLE_FILES.items():
     else:
         SINGLE_SAMPLES.append(samples)
 
-print("PAIRED      ", PAIRED_SAMPLES)
 # ======================================================== #
 # ============= Creating helper dictionaries ============= #
 # ======================================================== # 
@@ -178,8 +177,7 @@ for sample in sorted(FILES.keys()):
     for mark in FILES[sample].keys():
         #if(mark not in CONTROL_NAME):
         SAMPLES.setdefault(sample, []).append(mark)
-print(CONTROL_SAMPLE_DICT)
-print(SAMPLES)
+
 # Adding the proper merged input to the marks of each samples
 for sample in CHIPSEQ_SAMPLES:
     if sample in CONTROL_SAMPLE_DICT.keys():
@@ -251,6 +249,7 @@ FASTQ_NAME_WITH_SUFFIX.extend(expand("{sample}_R2", sample = PAIRED_SAMPLES))
 
 
 # Checking dict
+print("PAIRED      ", PAIRED_SAMPLES)
 print("SAMPLES with full fastq path     ",ALL_SAMPLE_FILES)
 print("ALL_CONTROL     ", CONTROL_MERGED_FILES)
 print("MARKS     ", MARKS)
@@ -341,12 +340,11 @@ ALL_DPQC = expand(os.path.join(WORKDIR, "QC/{mark}.plotProfileOutFileNameData.tx
 
 
 # --- Grouped by samples --- #
-ALL_DPQC_PLOT.extend(expand(os.path.join(WORKDIR, "QC/plots/fingerprint/{samp}.fingerprint.png"), samp = SAMPLES))
-ALL_DPQC_PLOT.extend(expand(os.path.join(WORKDIR, "QC/plots/correlation/{samp}.plotCorrelation.png"), samp = SAMPLES))
+ALL_DPQC_PLOT.extend(expand(os.path.join(WORKDIR, "QC/plots/fingerprint/{sample}.fingerprint.png"), sample = ALL_SAMPLES))
 ALL_DPQC_PLOT.extend([os.path.join(WORKDIR, "QC/plots/correlation/plotCorrelation.png")])
 
-ALL_DPQC.extend(expand(os.path.join(WORKDIR, "QC/{samp}.plotFingerprintOutRawCounts.txt"), samp = SAMPLES))
-ALL_DPQC.extend(expand(os.path.join(WORKDIR, "QC/{samp}.plotFingerprintOutQualityMetrics.txt"), samp = SAMPLES))
+ALL_DPQC.extend(expand(os.path.join(WORKDIR, "QC/{sample}.plotFingerprintOutRawCounts.txt"), sample = ALL_SAMPLES))
+ALL_DPQC.extend(expand(os.path.join(WORKDIR, "QC/{sample}.plotFingerprintOutQualityMetrics.txt"), sample = ALL_SAMPLES))
 ALL_DPQC.extend([os.path.join(WORKDIR, "QC/outFileCorMatrix.txt")])
 
 # ~~~~~~~~~~~ ChromHMM specific ~~~~~~~~~~~ #
@@ -753,28 +751,6 @@ rule plotProfile:
         plotProfile -m {input} -out {output.plot} --outFileNameData {output.outFileNameData} --refPointLabel TSS
         """
 
-# Deeptools correlation of samples. Plots per samples regrouping all marks or TF
-rule multiBigwigSummary:
-    input : get_big_wig_per_sample 
-    output : os.path.join(WORKDIR, "QC/{samp}.multiBigwigSummary.npz")
-    threads: 4
-    shell:
-        """
-        source activate full-pipe-main-env
-	    multiBigwigSummary bins --bwfiles {input} -out {output} --numberOfProcessors {threads}
-        """
-
-rule plotCorrelation:
-    input :  os.path.join(WORKDIR, "QC/{samp}.multiBigwigSummary.npz")
-    output : 
-        plot = os.path.join(WORKDIR, "QC/plots/correlation/{samp}.plotCorrelation.png"),
-        outFileNameData = os.path.join(WORKDIR, "QC/{samp}.outFileCorMatrix.txt")
-    shell:
-        """
-        source activate full-pipe-main-env
-        plotCorrelation --corData {input} --plotFile {output.plot} --outFileCorMatrix {output.outFileNameData} --corMethod pearson --whatToPlot heatmap --plotNumbers --skipZeros
-        """
-
 
 # Deeptools correlation of all samples grouped together for multiQC
 rule all_multiBigwigSummary:
@@ -784,7 +760,7 @@ rule all_multiBigwigSummary:
     shell:
         """
         source activate full-pipe-main-env
-	    multiBigwigSummary bins --bwfiles {input} -out {output} --numberOfProcessors {threads}
+	    multiBigwigSummary bins --bwfiles {input} -out {output} --region chr1 --numberOfProcessors {threads}
         """
 
 rule all_plotCorrelation:
@@ -801,21 +777,19 @@ rule all_plotCorrelation:
 # ChipSeq QCs plots from deeptools. Plotfingerprints are really usefull to see focal enrichment of your Chip-Seq enrichment
 rule plotFingerPrint:
     input:
-        bam = get_bams_per_sample, 
-        bai = get_bam_index_per_sample
+        bam = os.path.join(WORKDIR, "alignment/bams/{sample}.sorted.bam"), 
+        bai = os.path.join(WORKDIR, "alignment/bams/{sample}.sorted.bam.bai")
     output:
-        plot = os.path.join(WORKDIR, "QC/plots/fingerprint/{samp}.fingerprint.png"), 
-        rawCounts = os.path.join(WORKDIR, "QC/{samp}.plotFingerprintOutRawCounts.txt"),
-        qualityMetrics = os.path.join(WORKDIR, "QC/{samp}.plotFingerprintOutQualityMetrics.txt")
-    params: 
-        labels = get_all_marks_per_sample
+        plot = os.path.join(WORKDIR, "QC/plots/fingerprint/{sample}.fingerprint.png"), 
+        rawCounts = os.path.join(WORKDIR, "QC/{sample}.plotFingerprintOutRawCounts.txt"),
+        qualityMetrics = os.path.join(WORKDIR, "QC/{sample}.plotFingerprintOutQualityMetrics.txt")
     shell:
         """
         source activate full-pipe-main-env
-        plotFingerprint -b {input.bam} --plotFile {output.plot} --labels {params.labels} --region chr1 --skipZeros --numberOfSamples 100000 --minMappingQuality {config[MQ]} --plotTitle {wildcards.samp} --outRawCounts {output.rawCounts} --outQualityMetrics {output.qualityMetrics}
+        plotFingerprint -b {input.bam} --plotFile {output.plot} --region chr1 --skipZeros --numberOfSamples 100000 --minMappingQuality {config[MQ]} --plotTitle {wildcards.sample} --outRawCounts {output.rawCounts} --outQualityMetrics {output.qualityMetrics}
         """
 
-
+# Here featureCounts is used to compute the Fraction of reads in peaks. In case there is no peak called, a fake peak is added in the saf file to avoid featureCounts throwing an error and stopping the snakemake
 rule get_FRiP_for_multiqc:
     input:
         peaks = get_peaks,
@@ -828,7 +802,7 @@ rule get_FRiP_for_multiqc:
     shell:
         """
         source activate full-pipe-main-env
-        awk 'BEGIN{{OFS="\t";print "GeneID", "Chr","Start","End","Strand"}}{{print $4,$1,$2,$3,$6}}' {input.peaks} > {params.saf}
+        awk 'BEGIN{{OFS="\t";print "GeneID", "Chr","Start","End","Strand";print "FUBAR", "1","1000","1001","."}}{{print $4,$1,$2,$3,$6}}' {input.peaks} > {params.saf}
         featureCounts -a {params.saf} -F SAF -o {params.outputName} {input.bam}
         """
 

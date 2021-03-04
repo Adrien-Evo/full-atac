@@ -8,20 +8,41 @@ report_header_info:
     - Pipeline Type: 'ChIP-seq'
 
 module_order:
-    - MACS2_broadPeak_count
-    - MACS2_narrowPeak_count
-    - deepTools
+    - tss_plot
     - featureCounts:
+        namespace: 'FRiP'
         name: 'FRiP'
+        title: 'FRiP'
         info: 'Fraction of reads in peaks (FRiP)'
+    - MACS2-broadPeak-count
+    - MACS2-narrowPeak-count
+    - picard:
+        name: "Insert Size"
+        target: "Picard"
+        info: 'Insert size calculated by Picard CollectMultipleMetrics'
+    - deeptools:
+        name: "Sample correlation heatmap"
+        target: "deepTools"
+        info: "Pearson correlation coefficient for each sample"
+    - preseq:
+        name: 'Complexity curve'
+        target: 'Preseq'
+    - samblaster:
+        name: 'Duplicate count'
+        target: 'Samblaster'
     - bowtie2:
-        name: 'Bowtie2'
-        info: 'Bowtie 2 alignment recap' 
+        name: 'Alignment metrics'
     - fastqc
 
+table_columns_visible:
+    FRiP:
+        Assigned: False
+    phantompeakqualtools:
+        Estimated_Fragment_Length_bp: False
+    FastQC: False
 
 section_comments:
-    read_distribution_profile_plot: 'Accumulated view of the distribution of sequence reads around TSS.'
+    deeptools_correlation: "Correlation from deepTools plotCorrelation based on read counts from multiBigwigSummary"
 
 custom_data:
     encode_metrics:
@@ -49,8 +70,66 @@ custom_data:
                 max: 10
                 min: 0
                 scale: 'RdYlGn'
+    tss_stat:
+        plot_type: 'generalstats'
+        file_format: 'tsv'
+        pconfig:
+            - TSS:
+                namespace: "TSS Enrichment"
+                title: "TSS Enrichment"
+                description: "Signal to noise calculation around TSS"
+                max: 10
+                min: 0
+                scale: 'RdYlGn'
+    tss_plot:
+        file_format: 'tsv'
+        section_name: 'TSS Coverage'
+        description: 'The transcription start site profile plot (TSS) displays the number of reads that map around the transcription start site of selected genes'
+        plot_type: 'linegraph'
+        pconfig:
+            id: 'tss_plot'
+            title: 'TSS plot'
+            ylab: 'Average read coverage (per million mapped reads)'
+            ymax: 30
+            ymin: 0
 
+
+table_cond_formatting_rules:
+    mqc-generalstats-tss_enrichment-TSS:
+        pass:
+            - gt: 10
+        warn:
+            - lt: 10
+        fail:
+            - lt: 6
+    mqc-generalstats-pbc1-PBC1:
+        pass:
+            - gt: 0.9
+        warn:
+            - lt: 0.9
+        fail:
+            - lt: 0.7
+    mqc-generalstats-pbc2-PBC2:
+        pass:
+            - gt: 3
+        warn:
+            - lt: 3
+        fail:
+            - lt: 1
+    mqc-generalstats-nrf-NRF:
+        pass:
+            - gt: 0.9
+        warn:
+            - lt: 0.9
+        fail:
+            - lt: 0.7
 
 sp:
     encode_metrics:
         fn: '*encodeQC.txt'
+    tss_stat:
+        fn: '*max.txt'
+    tss_plot:
+        fn: '*tss.txt'
+
+
