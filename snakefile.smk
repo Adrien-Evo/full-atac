@@ -325,7 +325,13 @@ ALL_DOWNSAMPLE_INDEX = expand(os.path.join(WORKDIR, "downsampling/{sample}-downs
 ALL_FLAGSTAT = expand(os.path.join(WORKDIR, "alignment/bams/{sample}.sorted.bam.flagstat"), sample = ALL_SAMPLES)
 ALL_PHANTOM = expand(os.path.join(WORKDIR, "QC/phantompeakqualtools/{sample}.spp.out"), sample = ALL_SAMPLES)
 ALL_BIGWIG = expand(os.path.join(WORKDIR, "visualisation/bigwigs/{sample}.bw"), sample = ALL_SAMPLES)
-ALL_ENCODE = expand(os.path.join(WORKDIR, "QC/{sample}.encodeQC.txt"), sample = ALL_SAMPLES)
+
+ALL_SAMBLASTER_LOG = expand(os.path.join(WORKDIR, "logs/{sample}.samblaster.log"), sample = ALL_SAMPLES)
+
+# ~~~~~~~~~~~ ENCODE QC specific ~~~~~~~~~~ #
+ALL_TSS = expand(os.path.join(WORKDIR, "QC/encodeQC/{sample}.tss.txt"), sample = ALL_SAMPLES)
+ALL_TSS.extend(expand(os.path.join(WORKDIR, "QC/encodeQC/{sample}.max.txt"), sample = ALL_SAMPLES))
+ALL_ENCODE = expand(os.path.join(WORKDIR, "QC/encodeQC/{sample}.encodeQC.txt"), sample = ALL_SAMPLES)
 
 # ~~ Just sample with control ~~ #
 
@@ -346,6 +352,11 @@ ALL_DPQC_PLOT.extend([os.path.join(WORKDIR, "QC/plots/correlation/plotCorrelatio
 ALL_DPQC.extend(expand(os.path.join(WORKDIR, "QC/{sample}.plotFingerprintOutRawCounts.txt"), sample = ALL_SAMPLES))
 ALL_DPQC.extend(expand(os.path.join(WORKDIR, "QC/{sample}.plotFingerprintOutQualityMetrics.txt"), sample = ALL_SAMPLES))
 ALL_DPQC.extend([os.path.join(WORKDIR, "QC/outFileCorMatrix.txt")])
+
+
+
+
+
 
 # ~~~~~~~~~~~ ChromHMM specific ~~~~~~~~~~~ #
 if config["chromHMM"]:
@@ -383,10 +394,9 @@ ALL_HUB = [os.path.join(HUB_FOLDER,"{}.hub.txt").format(PROJECT_NAME)]
 # ======================================================== #
 
 # Depends on bam or fastq as input #
-if BAM_INPUT:
-    ALL_MULTIQC_INPUT = ALL_PHANTOM + ALL_DPQC + ALL_FEATURECOUNTS + ALL_BROADPEAKCOUNTS + ALL_NARROWPEAKCOUNTS
-else:
-    ALL_MULTIQC_INPUT = ALL_PHANTOM + ALL_DPQC + ALL_FEATURECOUNTS + ALL_BROADPEAKCOUNTS + ALL_NARROWPEAKCOUNTS + ALL_ENCODE + ALL_FASTQC + ALL_BOWTIE_LOG
+ALL_MULTIQC_INPUT = ALL_PHANTOM + ALL_DPQC + ALL_FEATURECOUNTS + ALL_BROADPEAKCOUNTS + ALL_NARROWPEAKCOUNTS + ALL_ENCODE + ALL_TSS
+if not BAM_INPUT:
+    ALL_MULTIQC_INPUT.extend(ALL_ENCODE + ALL_FASTQC + ALL_BOWTIE_LOG + ALL_SAMBLASTER_LOG)
 
 ###########################################################################
 ########################### Targets for rule all ##########################
@@ -680,7 +690,7 @@ if BAM_INPUT == False:
         input: 
             bam = os.path.join(WORKDIR, "alignment/raw-{sample}.bam") 
         output: 
-            os.path.join(WORKDIR, "QC/{sample}.encodeQC.txt")
+            os.path.join(WORKDIR, "QC/encodeQC/{sample}.encodeQC.txt")
         shell:
             """
             source activate full-pipe-main-env
@@ -716,6 +726,27 @@ rule phantom_peak_qual:
         source activate full-pipe-spp
         run_spp.R -c={input.bam} -savp -rf -p={threads} -odir={params}  -out={output} -tmpdir={params} 2> {log}
         """
+rule get_tss_info:
+    input:
+        bam = os.path.join(WORKDIR, "alignment/bams/{sample}.sorted.bam"),
+	bai = os.path.join(WORKDIR, "alignment/bams/{sample}.sorted.bam.bai"),
+    output:
+        tss_count = os.path.join(WORKDIR, "QC/encodeQC/{sample}.tss.txt"),
+        tss_stat = os.path.join(WORKDIR, "QC/encodeQC/{sample}.max.txt")
+    params:
+        tss = GENOME_TSS,
+        genome_size = GENOME_SIZE,
+        plot_folder = os.path.join(WORKDIR, "QC/encodeQC/"),
+        sample_name = "{sample}",
+        fragment_length = 200
+    threads: 8
+    shell:
+        """
+        source activate full-pipe-tss
+        python2.7 scripts/tss_plots.py --bam {input.bam} --tss {params.tss} --sampleName {params.sample_name} --chromSizes {params.genome_size} \
+        --plotFolder {params.plot_folder} --outputmultiQC_plot {output.tss_count} --outputmultiQC_stat {output.tss_stat} --fragLength {params.fragment_length} \
+        --bins 400 --window 2000 --threads {threads}
+        """
 
 # Deeptools QC
 rule computeMatrix_QC:
@@ -726,7 +757,7 @@ rule computeMatrix_QC:
     shell:
         """
         source activate full-pipe-main-env
-	    computeMatrix reference-point -S {input} -R {params} -a 2000 -b 2000 -out {output} --numberOfProcessors {threads}
+	computeMatrix reference-point -S {input} -R {params} -a 2000 -b 2000 -out {output} --numberOfProcessors {threads}
         """
 
 # Deeptools QC
