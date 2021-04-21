@@ -404,7 +404,7 @@ if not BAM_INPUT:
 TARGETS = []
 TARGETS.extend(ALL_ANNOTATED_PEAKS)
 TARGETS.extend(ALL_MULTIQC)
-#TARGETS.extend(ALL_HUB)
+TARGETS.extend(ALL_HUB)
 #print(ALL_MULTIQC_INPUT)
 # Since output from bam input are not used as input, needs to be put in the rule all for execution #
 if not BAM_INPUT:
@@ -566,7 +566,7 @@ if BAM_INPUT == False:
             input= (
                 lambda wildcards, input: ["-U", input]
                 if wildcards.sample in SINGLE_SAMPLES
-                else ["-1", input[0], "-2", input[1]]
+                else ["-1", input[0], "-2", input[1], "-I", "10", "-X", "700"]
                 )
         shell:
             """
@@ -943,7 +943,7 @@ rule call_narrow_peaks_macs2:
         """
         source activate full-pipe-macs
         macs2 callpeak -t {input[0]} \
-            {params.control} --keep-dup all -f {params.format} -g {config[macs2_g]} \
+            {params.control} --nomodel --shift -100 --extsize 200 --keep-dup all -f {params.format} -g {config[macs2_g]} \
             --outdir {params.outdir} -n {params.name} &> {log}
         """
 
@@ -1001,24 +1001,24 @@ rule get_bigbeds:
         scripts/bedToBigBed {params.bed1} {GENOME_SIZE} {output} -type=bed3
         """
 
-# # Creating a Hub for UCSC
-# rule get_UCSC_hub:
-#     input:  
-#         bed = ALL_BIGBED, 
-#         bigwig = ALL_BIGWIG_INPUT
-#     output:
-#         ALL_HUB
-#     log: os.path.join(WORKDIR, "logs/log.trackhub")
-#     params:
-#         output_dir = HUB_FOLDER, 
-#         sample_name = list(SAMPLES.keys()), 
-#         categories = MARKS_NO_CONTROL
-#     shell:
-#         """
-#         source activate full-pipe-main-env
-#         python3 scripts/makeUCSCtrackHub.py --hub_name {PROJECT_NAME} --sample_name {params.sample_name} --categories {params.categories} \
-#         --output_dir {params.output_dir} --peaks {input.bed} --bw {input.bigwig} 2> {log}
-#         """
+# Creating a Hub for UCSC
+rule get_UCSC_hub:
+    input:  
+        bed = ALL_BIGBED, 
+        bigwig = ALL_BIGWIG
+    output:
+        ALL_HUB
+    log: os.path.join(WORKDIR, "logs/log.trackhub")
+    params:
+        output_dir = HUB_FOLDER, 
+        sample_name = list(SAMPLES.keys()), 
+        categories = MARKS_NO_CONTROL
+    shell:
+        """
+        source activate full-pipe-main-env
+        python3 scripts/makeUCSCtrackHub.py --hub_name {PROJECT_NAME} --sample_name {params.sample_name} --categories {params.categories} \
+        --output_dir {params.output_dir} --peaks {input.bed} --bw {input.bigwig} 2> {log}
+        """
 
 ########################################################################### 
 ################################# MULTIQC #################################
