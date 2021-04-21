@@ -943,7 +943,7 @@ rule call_narrow_peaks_macs2:
         """
         source activate full-pipe-macs
         macs2 callpeak -t {input[0]} \
-            {params.control} --nomodel --shift -100 --extsize 200 --keep-dup all -f {params.format} -g {config[macs2_g]} \
+            {params.control} --nomodel --keep-dup all -f {params.format} -g {config[macs2_g]} \
             --outdir {params.outdir} -n {params.name} &> {log}
         """
 
