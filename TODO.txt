@@ -11,10 +11,7 @@ rules than can prob be removed :
 flagstat_bam
 
 
-Adding work to the multiQC : ENCODE metrics need to be added
-
-
-
+Adding dovetail option of bowtie 2 for cut&run https://github.com/nf-core/chipseq/issues/127
 
 
 
