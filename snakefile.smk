@@ -249,17 +249,17 @@ FASTQ_NAME_WITH_SUFFIX.extend(expand("{sample}_R2", sample = PAIRED_SAMPLES))
 
 
 # Checking dict
-print("PAIRED      ", PAIRED_SAMPLES)
-print("SAMPLES with full fastq path     ",ALL_SAMPLE_FILES)
-print("ALL_CONTROL     ", CONTROL_MERGED_FILES)
-print("MARKS     ", MARKS)
-print("MARKS_NO_CONTROL     ", MARKS_NO_CONTROL)
-print("MARKS_COMPLETE_NAME     ", MARKS_COMPLETE_NAME)
-print("CONTROL_SAMPLE_DICT     ",CONTROL_SAMPLE_DICT)
-print("CONTROL_SAMPLE_MARK_DICT     ",CONTROL_SAMPLE_MARK_DICT)
-print("R1 Paired SAMPLES with full fastq path     ",PAIRED_SAMPLES_DICT_FASTQ_R1)
-print("R2 Paired SAMPLES with full fastq path     ",PAIRED_SAMPLES_DICT_FASTQ_R2)
-print("Single end SAMPLES with full fastq path     ",SINGLE_SAMPLES_DICT_FASTQ)
+#print("PAIRED      ", PAIRED_SAMPLES)
+#print("SAMPLES with full fastq path     ",ALL_SAMPLE_FILES)
+#print("ALL_CONTROL     ", CONTROL_MERGED_FILES)
+#print("MARKS     ", MARKS)
+#print("MARKS_NO_CONTROL     ", MARKS_NO_CONTROL)
+#print("MARKS_COMPLETE_NAME     ", MARKS_COMPLETE_NAME)
+#print("CONTROL_SAMPLE_DICT     ",CONTROL_SAMPLE_DICT)
+#print("CONTROL_SAMPLE_MARK_DICT     ",CONTROL_SAMPLE_MARK_DICT)
+#print("R1 Paired SAMPLES with full fastq path     ",PAIRED_SAMPLES_DICT_FASTQ_R1)
+#print("R2 Paired SAMPLES with full fastq path     ",PAIRED_SAMPLES_DICT_FASTQ_R2)
+#print("Single end SAMPLES with full fastq path     ",SINGLE_SAMPLES_DICT_FASTQ)
 ###########################################################################
 ############################# Helper functions ############################
 ###########################################################################
@@ -282,7 +282,7 @@ def get_chr(chromSize):
     return(chr)
 
 CANONICAL_CHR = get_chr(get_canonical_chromSize(GENOME_SIZE))
-
+print(CANONICAL_CHR)
 ###########################################################################
 ########################### Listing OUTPUT FILES ##########################
 ###########################################################################
@@ -317,7 +317,6 @@ ALL_BAM     = CONTROL_BAM + CASE_BAM
 # ~~ All samples files (cases + control) ~~ #
 ALL_DOWNSAMPLE_BAM = expand(os.path.join(WORKDIR, "alignment/downsampling/{sample}-downsample.sorted.bam"), sample = ALL_SAMPLES)
 ALL_FASTQ  = expand(os.path.join(WORKDIR, "alignment/fastq/{fname}.fastq.gz"), fname = FASTQ_NAME_WITH_SUFFIX)
-print(ALL_FASTQ)
 ALL_FASTQC  = expand(os.path.join(WORKDIR, "QC/fastqc/{fname}_fastqc.zip"), fname = FASTQ_NAME_WITH_SUFFIX)
 ALL_BOWTIE_LOG = expand(os.path.join(WORKDIR, "logs/{sample}.align"), sample = ALL_SAMPLES)
 ALL_INDEX = expand(os.path.join(WORKDIR, "alignment/bams/{sample}.sorted.bam.bai"), sample = ALL_SAMPLES)
@@ -403,7 +402,7 @@ if not BAM_INPUT:
 ###########################################################################
 TARGETS = []
 TARGETS.extend(ALL_ANNOTATED_PEAKS)
-TARGETS.extend(ALL_MULTIQC)
+#TARGETS.extend(ALL_MULTIQC)
 TARGETS.extend(ALL_HUB)
 #print(ALL_MULTIQC_INPUT)
 # Since output from bam input are not used as input, needs to be put in the rule all for execution #
@@ -411,7 +410,7 @@ if not BAM_INPUT:
     TARGETS.extend(ALL_CONFIG)
 
 #Here some of the ouputs of the rules are not used by multiQC and need adding to the rule all
-TARGETS.extend(ALL_DPQC_PLOT)
+#TARGETS.extend(ALL_DPQC_PLOT)
 TARGETS.extend(ALL_PEAKS)
 
 # ~~~~~~~~~~~~~~~~ ChromHMM ~~~~~~~~~~~~~~~ #
@@ -481,7 +480,6 @@ def get_bams(wildcards):
 
 # ~~~~~~~ peak sets per marks or tf ~~~~~~~ #
 def get_peaks(wildcards):
-    print(wildcards.case)
     for key, value in MARKS_COMPLETE_NAME.items():
         if any(wildcards.case in sample_mark for sample_mark in MARKS_COMPLETE_NAME[key]):
             if key in NARROW_BROAD:
@@ -507,7 +505,6 @@ def get_control_downsampled_bais_with_input(wildcards):
 
 
 
-print(ALL_BIGWIG_INPUT)
 ###########################################################################
 ################################# rule all ################################
 ###########################################################################
@@ -566,7 +563,7 @@ if BAM_INPUT == False:
             input= (
                 lambda wildcards, input: ["-U", input]
                 if wildcards.sample in SINGLE_SAMPLES
-                else ["-1", input[0], "-2", input[1], "-I", "10", "-X", "700"]
+                else ["-1", input[0], "-2", input[1], "-I", "0", "-X", "2000", "--local", "--dovetail"]
                 )
         shell:
             """

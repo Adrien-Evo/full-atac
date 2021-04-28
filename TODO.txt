@@ -12,6 +12,6 @@ flagstat_bam
 
 
 Adding dovetail option of bowtie 2 for cut&run https://github.com/nf-core/chipseq/issues/127
-
+Add a general stats multiqc line about total number of reads bowtie maybe
 
 
