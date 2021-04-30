@@ -321,7 +321,8 @@ ALL_FASTQC  = expand(os.path.join(WORKDIR, "QC/fastqc/{fname}_fastqc.zip"), fnam
 ALL_BOWTIE_LOG = expand(os.path.join(WORKDIR, "logs/{sample}.align"), sample = ALL_SAMPLES)
 ALL_INDEX = expand(os.path.join(WORKDIR, "alignment/bams/{sample}.sorted.bam.bai"), sample = ALL_SAMPLES)
 ALL_DOWNSAMPLE_INDEX = expand(os.path.join(WORKDIR, "downsampling/{sample}-downsample.sorted.bam.bai"), sample = ALL_SAMPLES)
-ALL_FLAGSTAT = expand(os.path.join(WORKDIR, "alignment/bams/{sample}.sorted.bam.flagstat"), sample = ALL_SAMPLES)
+ALL_FLAGSTAT = expand(os.path.join(WORKDIR, "QC/flagstat/{sample}.sorted.bam.flagstat"), sample = ALL_SAMPLES)
+ALL_FLAGSTAT.extend(expand(os.path.join(WORKDIR, "QC/flagstat/{sample}.raw.bam.flagstat"), sample = ALL_SAMPLES))
 ALL_PHANTOM = expand(os.path.join(WORKDIR, "QC/phantompeakqualtools/{sample}.spp.out"), sample = ALL_SAMPLES)
 ALL_BIGWIG = expand(os.path.join(WORKDIR, "visualisation/bigwigs/{sample}.bw"), sample = ALL_SAMPLES)
 
@@ -393,7 +394,7 @@ ALL_HUB = [os.path.join(HUB_FOLDER,"{}.hub.txt").format(PROJECT_NAME)]
 # ======================================================== #
 
 # Depends on bam or fastq as input #
-ALL_MULTIQC_INPUT = ALL_PHANTOM + ALL_DPQC + ALL_FEATURECOUNTS + ALL_BROADPEAKCOUNTS + ALL_NARROWPEAKCOUNTS + ALL_ENCODE + ALL_TSS
+ALL_MULTIQC_INPUT = ALL_PHANTOM + ALL_DPQC + ALL_FEATURECOUNTS + ALL_BROADPEAKCOUNTS + ALL_NARROWPEAKCOUNTS + ALL_ENCODE + ALL_TSS + ALL_FLAGSTAT
 if not BAM_INPUT:
     ALL_MULTIQC_INPUT.extend(ALL_ENCODE + ALL_FASTQC + ALL_BOWTIE_LOG + ALL_SAMBLASTER_LOG)
 
@@ -402,7 +403,7 @@ if not BAM_INPUT:
 ###########################################################################
 TARGETS = []
 TARGETS.extend(ALL_ANNOTATED_PEAKS)
-#TARGETS.extend(ALL_MULTIQC)
+TARGETS.extend(ALL_MULTIQC)
 TARGETS.extend(ALL_HUB)
 #print(ALL_MULTIQC_INPUT)
 # Since output from bam input are not used as input, needs to be put in the rule all for execution #
@@ -554,7 +555,7 @@ if BAM_INPUT == False:
     # Simple alignment with bowtie 2 followed by sorting #
     rule align:
         input:  get_fastq
-        output: temp(os.path.join(WORKDIR, "alignment/raw-{sample}.bam"))
+        output: temp(os.path.join(WORKDIR, "alignment/{sample}.raw.bam"))
         threads: 16
         log:    
             bowtie = os.path.join(WORKDIR, "logs/{sample}.align"),
@@ -577,7 +578,7 @@ if BAM_INPUT == False:
 
     # Get the duplicates marked sorted bam, remove unmapped reads by samtools view -F 1804 #
     rule filter_alignment:
-        input:  os.path.join(WORKDIR, "alignment/raw-{sample}.bam")
+        input:  os.path.join(WORKDIR, "alignment/{sample}.raw.bam")
         output: os.path.join(WORKDIR, "alignment/bams/{sample}.sorted.bam")
         log:    os.path.join(WORKDIR, "logs/{sample}.filter")
         shell:
@@ -644,9 +645,21 @@ rule index_bam:
 #  Using user provided parameters, bam will be downsampled. Flagstat is used for read counting and fed to sambamba  #
 
 # flagstat
-rule flagstat_bam:
+rule flagstat_raw_bam:
+    input:  os.path.join(WORKDIR, "alignment/{sample}.raw.bam")
+    output: os.path.join(WORKDIR, "QC/flagstat/{sample}.raw.bam.flagstat")
+    log:    os.path.join(WORKDIR, "logs/{sample}.bam.flagstat")
+    threads: 1
+    params: jobname = "{sample}"
+    shell:
+        """
+        source activate full-pipe-main-env
+        samtools flagstat {input} > {output} 2> {log}
+        """
+# flagstat
+rule flagstat_sorted_bam:
     input:  os.path.join(WORKDIR, "alignment/bams/{sample}.sorted.bam")
-    output: os.path.join(WORKDIR, "alignment/bams/{sample}.sorted.bam.flagstat")
+    output: os.path.join(WORKDIR, "QC/flagstat/{sample}.sorted.bam.flagstat")
     log:    os.path.join(WORKDIR, "logs/{sample}.bam.flagstat")
     threads: 1
     params: jobname = "{sample}"
@@ -656,12 +669,13 @@ rule flagstat_bam:
         samtools flagstat {input} > {output} 2> {log}
         """
 
+
 #downsampling
 rule down_sample:
     input: 
         bam = os.path.join(WORKDIR, "alignment/bams/{sample}.sorted.bam"), 
         bai = os.path.join(WORKDIR, "alignment/bams/{sample}.sorted.bam.bai"), 
-        flagstat = os.path.join(WORKDIR, "alignment/bams/{sample}.sorted.bam.flagstat")
+        flagstat = os.path.join(WORKDIR, "QC/flagstat/{sample}.sorted.bam.flagstat")
     output: 
         bam = os.path.join(WORKDIR, "alignment/downsampling/{sample}-downsample.sorted.bam"), 
         bai = os.path.join(WORKDIR, "alignment/downsampling/{sample}-downsample.sorted.bam.bai")
@@ -685,7 +699,7 @@ rule down_sample:
 if BAM_INPUT == False:
     rule encode_complexity:
         input: 
-            bam = os.path.join(WORKDIR, "alignment/raw-{sample}.bam") 
+            bam = os.path.join(WORKDIR, "alignment/{sample}.raw.bam") 
         output: 
             os.path.join(WORKDIR, "QC/encodeQC/{sample}.encodeQC.txt")
         shell:

@@ -32,7 +32,20 @@ module_order:
         target: 'Samblaster'
     - bowtie2:
         name: 'Alignment metrics'
-    - fastqc
+    - samtools:
+        name: 'Read Counts (raw)'
+        info: 'Raw read counts'
+        anchor: 'read_counts_raw'
+        path_filters:
+            - '*.raw.bam.flagstat'  
+    - samtools:
+        name: 'Read Counts (filtered)'
+        info: 'Read counts after filtering for properly aligned reads and MQ passed'
+        anchor: 'Read_counts_filtered'
+        target: ''
+        path_filters:
+            - '*.sorted.bam.flagstat'
+     - fastqc
 
 table_columns_visible:
     FRiP:
@@ -132,4 +145,6 @@ sp:
     tss_plot:
         fn: '*tss.txt'
 
+extra_fn_clean_exts:
+  - ".raw"
 
