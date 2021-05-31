@@ -1,14 +1,17 @@
-PROJECT_NAME: 'Barc-Chip-Seq'
+# This is your project name. Probably don't use any space
+PROJECT_NAME: 'MyChipSeq'
 
-
-# Path to a JSON file with samples and their corresponding FASTQ files.
-SAMPLES_JSON: 'chip-Seq-good-samples/alignment/bams.json'
+# Your output directory
 OUTPUT_DIR: './chip-Seq-good-samples'
 
-# Name of your input
+# Path to a JSON file with samples and their corresponding FASTQ files. This can be generated with the script samples2json and a meta file
+SAMPLES_JSON: 'mySampleJson.json'
+
+# In your sample Json, please precise how do you name your control sample.
 control: 'Input'
 
-bam: True
+# Use True/False 
+bam: False
 
 #####################################################
 ##########  Genome data #############################
