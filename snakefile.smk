@@ -77,18 +77,28 @@ CHIPSEQ_CASES = [sample for sample in CHIPSEQ_MARK if CONTROL_NAME not in sample
 # =========  Defining Control/Input samples   ============ #
 # ======================================================== #
 
-#  Create a dictionary linking each sample with their control fastq or bam e.g. { Mousekidney01 : controlIG16_TCGCTAGA_L001_R1_002.fastq.gz 16_TCGCTAGA_L001_R1_001.fastq.gz}  #
-# Joining the list to allow for usage as a dictionary key
+
+CONTROL_SAMP = [sample for sample in SAMPLE_MARK if CONTROL_NAME in sample]
+
+# Create a dictionary linking each sample with their control fastq or bam e.g. { Mousekidney01 : controlIG16_TCGCTAGA_L001_R1_002.fastq.gz 16_TCGCTAGA_L001_R1_001.fastq.gz}  #
+# Here we want to check if input/control are used multiple times for different sample. We then create aliases for those input/control to ensure not having to align them twice. We use the fastq path as a dictionary key
+
 controlFile = dict()
-for samp in CHIPSEQ_MARK:
-    if CONTROL_NAME in samp:
-        sample = "".join(samp.split("_")[0:-1])
-        #Here mark should contain the Input name
-        mark = samp.split("_")[-1]
+for samp in CONTROL_SAMP:
+    sample = "".join(samp.split("_")[0:-1])
+    #Here mark should contain the Input name
+    mark = samp.split("_")[-1]
+    # If Input is paired end 
+    if('R1' in FILES[sample][mark] or 'R2' in FILES[sample][mark]):
+        controlFile[sample] = " ".join(FILES[sample][mark]['R1'])
+    else:
         controlFile[sample] = " ".join(FILES[sample][mark])
+
+
 #Checking if control has been found:
 if not bool(controlFile):
     logger.warning("Can't file any controls/input named " + CONTROL_NAME + ". Exiting")
+
 
 # Finding duplicate values from controlFile by flipping the dictionary
 controlFileFlipped = {} 
@@ -113,17 +123,26 @@ CONTROL_SAMPLE_DICT = {}
 for key, value in controlFile.items():
     CONTROL_SAMPLE_DICT[key] = mergedInputDict[value]
 
+print(CONTROL_SAMPLE_DICT)
+
 CONTROL_SAMPLE_MARK_DICT = {}
 for key, value in CONTROL_SAMPLE_DICT.items():
     for samp in FILES[key].keys():
+        print(samp)
+        print(CONTROL_NAME)
         if CONTROL_NAME not in samp: 
             CONTROL_SAMPLE_MARK_DICT[key + "_" + samp ]  = value
 
 
-# Flipping the flipped dictionary to have a link between generic input name and their corresponding fastq/Bam files. Splitting back the file name
+# Create a dict with Input name to the fastq file
 CONTROL_MERGED_FILES = {}
-for key, value in controlFileFlipped.items():
-    CONTROL_MERGED_FILES[value] = key.split(" ")
+for samp in CONTROL_SAMP:
+    sample = "".join(samp.split("_")[0:-1])
+    #Here mark should contain the Input name
+    mark = samp.split("_")[-1]
+    CONTROL_MERGED_FILES[CONTROL_SAMPLE_DICT[sample]] = FILES[sample][mark]
+
+
 
 # Creating the dictionnary for all sample name linked to their input file
 #CASES_SAMPLE_FILES becomes CHIPSEQ_SAMPLE_FILES
@@ -141,7 +160,6 @@ CUTRUN_SAMPLE_FILES = {}
 
 
 
-#ALL_SAMPLE_FILE becomes CHIPSEQ_SAMPLE_FILES
 ALL_SAMPLE_FILES = {**CHIPSEQ_SAMPLE_FILES, **CONTROL_MERGED_FILES, **CUTRUN_SAMPLE_FILES }
 ALL_CHIPSEQ_FILES = {**CHIPSEQ_SAMPLE_FILES, **CONTROL_MERGED_FILES}
 CONTROLS = list(CONTROL_MERGED_FILES.keys())
@@ -149,7 +167,6 @@ CONTROLS = list(CONTROL_MERGED_FILES.keys())
 # ~~~~~~~~~~~~~~ All samples ~~~~~~~~~~~~~~ #
 ALL_SAMPLES = CASES + CONTROLS
 ALL_CHIPSEQ = CHIPSEQ_CASES + CONTROLS
-
 
 # ======================================================== #
 # =========== Defining paired/single samples ============= #
@@ -230,7 +247,7 @@ for key, value in CONTROL_SAMPLE_DICT.items():
     MARKS_COMPLETE_NAME.setdefault(value, []).append(key)
 
 
-# Adding comptle file name for SINGLE and PAIRED end samples
+# Adding complete file name for SINGLE and PAIRED end samples
 
 PAIRED_SAMPLES_DICT_FASTQ_R1 = {}
 PAIRED_SAMPLES_DICT_FASTQ_R2 = {}
@@ -251,11 +268,11 @@ FASTQ_NAME_WITH_SUFFIX.extend(expand("{sample}_R2", sample = PAIRED_SAMPLES))
 # Checking dict
 #print("PAIRED      ", PAIRED_SAMPLES)
 #print("SAMPLES with full fastq path     ",ALL_SAMPLE_FILES)
-#print("ALL_CONTROL     ", CONTROL_MERGED_FILES)
+print("ALL_CONTROL     ", CONTROL_MERGED_FILES)
 #print("MARKS     ", MARKS)
 #print("MARKS_NO_CONTROL     ", MARKS_NO_CONTROL)
 #print("MARKS_COMPLETE_NAME     ", MARKS_COMPLETE_NAME)
-#print("CONTROL_SAMPLE_DICT     ",CONTROL_SAMPLE_DICT)
+print("CONTROL_SAMPLE_DICT     ",CONTROL_SAMPLE_DICT)
 #print("CONTROL_SAMPLE_MARK_DICT     ",CONTROL_SAMPLE_MARK_DICT)
 #print("R1 Paired SAMPLES with full fastq path     ",PAIRED_SAMPLES_DICT_FASTQ_R1)
 #print("R2 Paired SAMPLES with full fastq path     ",PAIRED_SAMPLES_DICT_FASTQ_R2)
@@ -345,13 +362,14 @@ ALL_DPQC_PLOT.extend(expand(os.path.join(WORKDIR, "QC/plots/profile/{mark}.plotP
 ALL_DPQC = expand(os.path.join(WORKDIR, "QC/{mark}.plotProfileOutFileNameData.txt"), mark = MARKS)
 
 
+#Temp commenting of allCorrelation since it takes ages with a lot of samples
 # --- Grouped by samples --- #
 ALL_DPQC_PLOT.extend(expand(os.path.join(WORKDIR, "QC/plots/fingerprint/{sample}.fingerprint.png"), sample = ALL_SAMPLES))
-ALL_DPQC_PLOT.extend([os.path.join(WORKDIR, "QC/plots/correlation/plotCorrelation.png")])
+#ALL_DPQC_PLOT.extend([os.path.join(WORKDIR, "QC/plots/correlation/plotCorrelation.png")])
 
 ALL_DPQC.extend(expand(os.path.join(WORKDIR, "QC/{sample}.plotFingerprintOutRawCounts.txt"), sample = ALL_SAMPLES))
 ALL_DPQC.extend(expand(os.path.join(WORKDIR, "QC/{sample}.plotFingerprintOutQualityMetrics.txt"), sample = ALL_SAMPLES))
-ALL_DPQC.extend([os.path.join(WORKDIR, "QC/outFileCorMatrix.txt")])
+#ALL_DPQC.extend([os.path.join(WORKDIR, "QC/outFileCorMatrix.txt")])
 
 
 
