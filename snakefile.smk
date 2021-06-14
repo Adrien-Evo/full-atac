@@ -372,8 +372,11 @@ ALL_DPQC.extend(expand(os.path.join(WORKDIR, "QC/{sample}.plotFingerprintOutQual
 #ALL_DPQC.extend([os.path.join(WORKDIR, "QC/outFileCorMatrix.txt")])
 
 
+###TEMPORARY SEACR peaks
 
+ALL_SEACR_peaks = expand(os.path.join(WORKDIR, "peak_calling/seacr/{case}.stringent.bed"), case = CASES)
 
+ALL_SEACR_peaks.extend(expand(os.path.join(WORKDIR, "peak_calling/seacr/{case}.relaxed.bed"), case = CASES))
 
 
 # ~~~~~~~~~~~ ChromHMM specific ~~~~~~~~~~~ #
@@ -531,10 +534,10 @@ def get_control_downsampled_bais_with_input(wildcards):
 #TODO see if this is usefull
 localrules: all
 
-rule all:
-    input: TARGETS
 #rule all:
-#    input: ALL_PEAKS
+#    input: TARGETS
+rule all:
+    input: ALL_SEACR_peaks
 
 # Ordering rule for ambiguous cases for paired and single end management
 ruleorder: merge_fastqs_paired > merge_fastqs_single > fastqc
@@ -786,7 +789,7 @@ rule computeMatrix_QC:
     shell:
         """
         source activate full-pipe-main-env
-	computeMatrix reference-point -S {input} -R {params} -a 2000 -b 2000 -out {output} --numberOfProcessors {threads}
+	    computeMatrix reference-point -S {input} -R {params} -a 2000 -b 2000 -out {output} --numberOfProcessors {threads}
         """
 
 # Deeptools QC
@@ -899,27 +902,21 @@ rule get_narrow_peak_counts_for_multiqc:
 
 
 
-def get_macs2_broad_input(wildcards):
+def get_bam_peak_calling_input(wildcards):
     
-    input_for_macs2_broad = []
+    input_for_peak_calling = []
     #Checking if paired or not
-    if wildcards.case in PAIRED_SAMPLES :
-        input_for_macs2_broad.append(os.path.join(WORKDIR, "alignment/downsampling/" + wildcards.case + "-downsample.sorted.bam"))
+    input_for_peak_calling.append(os.path.join(WORKDIR, "alignment/downsampling/" + wildcards.case + "-downsample.sorted.bam"))
         #Checking if sample has a control
-        if wildcards.case in CONTROL_SAMPLE_MARK_DICT.keys() :
-            input_for_macs2_broad.append(os.path.join(WORKDIR, "alignment/downsampling/"+ CONTROL_SAMPLE_MARK_DICT[wildcards.case] + "-downsample.sorted.bam"))
-    else:
-        input_for_macs2_broad.append(os.path.join(WORKDIR, "alignment/downsampling/" + wildcards.case + "-downsample.sorted.bam"))
-        #Checking if sample has a control
-        if wildcards.case in CONTROL_SAMPLE_MARK_DICT.keys() :
-            input_for_macs2_broad.append(os.path.join(WORKDIR, "alignment/downsampling/"+ CONTROL_SAMPLE_MARK_DICT[wildcards.case] + "-downsample.sorted.bam"))
+    if wildcards.case in CONTROL_SAMPLE_MARK_DICT.keys() :
+        input_for_peak_calling.append(os.path.join(WORKDIR, "alignment/downsampling/"+ CONTROL_SAMPLE_MARK_DICT[wildcards.case] + "-downsample.sorted.bam"))
     
-    return input_for_macs2_broad
+    return input_for_peak_calling
 
 
 # Peak calling using MACS 2
 rule call_broad_peaks_macs2:
-    input: get_macs2_broad_input
+    input: get_bam_peak_calling_input
     output:
         broad = os.path.join(WORKDIR, "peak_calling/macs2_broad/{case}-macs2_peaks.broadPeak")
     log: os.path.join(WORKDIR, "logs/{case}-call-peaks_macs2.log")
@@ -949,7 +946,7 @@ rule call_broad_peaks_macs2:
 # Peak calling using MACS 2
 rule call_narrow_peaks_macs2:
     input: 
-        get_macs2_broad_input
+        get_bam_peak_calling_input
     output:
         narrow = os.path.join(WORKDIR, "peak_calling/macs2_narrow/{case}-macs2_peaks.narrowPeak")
     log: os.path.join(WORKDIR, "logs/{case}-call-narrowpeaks_macs2.log")
@@ -976,6 +973,72 @@ rule call_narrow_peaks_macs2:
             --outdir {params.outdir} -n {params.name} &> {log}
         """
 
+
+# Peak calling using seacr for cutrun samples 
+rule get_input_for_seacr:
+    input: 
+        bam = os.path.join(WORKDIR, "alignment/bams/{sample}.sorted.bam") 
+    output: 
+        bedgraph = os.path.join(WORKDIR, "peak_calling/seacr/{sample}.fragments.bedgraph")
+    params:
+        prefix = os.path.join(WORKDIR, "peak_calling/seacr/{sample}"),
+        genome_size = GENOME_SIZE
+    shell:
+        """
+        source activate full-pipe-main-env
+        bedtools bamtobed -bedpe -i {input.bam} > {params.prefix}.bed
+        awk '$1==$4 && $6-$2 < 1000 {{print $0}}' {params.prefix}.bed > {params.prefix}.clean.bed
+        cut -f 1,2,6 {params.prefix}.clean.bed | sort -k1,1 -k2,2n -k3,3n > {params.prefix}.fragments.bed
+        bedtools genomecov -bg -i {params.prefix}.fragments.bed -g {params.genome_size} > {output.bedgraph}
+        """
+
+def get_bam_peak_calling_input_seacr(wildcards):
+    
+    input_for_peak_calling = []
+    #Checking if paired or not
+    input_for_peak_calling.append(os.path.join(WORKDIR, "peak_calling/seacr/" + wildcards.case + ".fragments.bedgraph"))
+    #Checking if sample has a control
+    if wildcards.case in CONTROL_SAMPLE_MARK_DICT.keys() :
+        input_for_peak_calling.append(os.path.join(WORKDIR, "peak_calling/seacr/"+ CONTROL_SAMPLE_MARK_DICT[wildcards.case] + ".fragments.bedgraph"))
+    
+    return input_for_peak_calling
+
+#Here if the case sample has a control, then its going to be used. Else it's the numeric threshold
+rule call_stringent_peaks_seacr:
+    input: 
+        get_bam_peak_calling_input_seacr 
+    output: 
+        stringent = os.path.join(WORKDIR, "peak_calling/seacr/{case}.stringent.bed")
+    params:
+        prefix = os.path.join(WORKDIR, "peak_calling/seacr/{case}"),
+        control = (
+            lambda wildcards, input: [input[1]]
+            if wildcards.case in CONTROL_SAMPLE_MARK_DICT
+            else ["0.01"]
+        )
+    shell:
+        """
+        source activate full-pipe-main-env
+        SEACR_1.3.sh {input[0]} {params.control} norm stringent {params.prefix}
+        """
+
+rule call_relaxed_peaks_seacr:
+    input: 
+        get_bam_peak_calling_input_seacr 
+    output: 
+        stringent = os.path.join(WORKDIR, "peak_calling/seacr/{case}.relaxed.bed")
+    params:
+        prefix = os.path.join(WORKDIR, "peak_calling/seacr/{case}"),
+        control = (
+            lambda wildcards, input: [input[1]]
+            if wildcards.case in CONTROL_SAMPLE_MARK_DICT
+            else ["0.01"]
+        )
+    shell:
+        """
+        source activate full-pipe-main-env
+        SEACR_1.3.sh {input[0]} {params.control} norm relaxed {params.prefix}
+        """
 
 ###########################################################################
 ####### VISUALIZATION bigWig and bigBed generation and HUB creation #######
