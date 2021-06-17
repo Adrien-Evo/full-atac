@@ -323,6 +323,9 @@ for sample_mark in CASES:
     ALL_FEATURECOUNTS.append(os.path.join(WORKDIR, "QC/{}.FRiP.summary").format(sample_mark))
     ALL_BROADPEAKCOUNTS.append(os.path.join(WORKDIR, "QC/{}-broadpeak-count_mqc.json").format(sample_mark))
     ALL_NARROWPEAKCOUNTS.append(os.path.join(WORKDIR, "QC/{}-narrowpeak-count_mqc.json").format(sample_mark))
+    ALL_RELAXEDPEAKCOUNTS.append(os.path.join(WORKDIR, "QC/{}-seacr-relaxed-count_mqc.json").format(sample_mark))
+    ALL_STRINGENTPEAKCOUNTS.append(os.path.join(WORKDIR, "QC/{}-seacr-stringent-count_mqc.json").format(sample_mark))
+    
     ALL_ANNOTATED_PEAKS.append(os.path.join(WORKDIR, "annotation/{}-peaks_annotated.txt").format(sample_mark))
     
 # ~~~~~~~~~~~~~~~ Bam files ~~~~~~~~~~~~~~~ #
@@ -875,7 +878,7 @@ rule get_broad_peak_counts_for_multiqc:
     output:
         os.path.join(WORKDIR, "QC/{case}-broadpeak-count_mqc.json")
     params:
-        peakType = "broadPeak"
+        peakType = "MACS2 broadPeak"
     shell:
         """
         source activate full-pipe-main-env
@@ -888,7 +891,35 @@ rule get_narrow_peak_counts_for_multiqc:
     output:
         os.path.join(WORKDIR, "QC/{case}-narrowpeak-count_mqc.json")
     params:
-        peakType = "narrowPeak"
+        peakType = "MACS2 narrowPeak"
+    shell:
+        """
+        source activate full-pipe-main-env
+        python3 scripts/count_peaks.py --peak_type {params.peakType} --peaks {input.peaks} --sample_name {wildcards.case} > {output}
+        """
+
+#SEACR relaxed
+rule get_relaxed_peak_counts_for_multiqc:
+    input:
+        peaks = os.path.join(WORKDIR, "peak_calling/seacr/{case}.relaxed.bed")
+    output:
+        os.path.join(WORKDIR, "QC/{case}-relaxed-count_mqc.json")
+    params:
+        peakType = "SEACR relaxed"
+    shell:
+        """
+        source activate full-pipe-main-env
+        python3 scripts/count_peaks.py --peak_type {params.peakType} --peaks {input.peaks} --sample_name {wildcards.case} > {output}
+        """
+
+#SEACR stringent
+rule get_stringent_peak_counts_for_multiqc:
+    input:
+        peaks = os.path.join(WORKDIR, "peak_calling/seacr/{case}.stringent.bed")
+    output:
+        os.path.join(WORKDIR, "QC/{case}-seacr-stringent-count_mqc.json")
+    params:
+        peakType = "SEACR stringent"
     shell:
         """
         source activate full-pipe-main-env

@@ -14,8 +14,10 @@ module_order:
         name: 'FRiP'
         title: 'FRiP'
         info: 'Fraction of reads in peaks (FRiP)'
-    - MACS2-broadPeak-count
-    - MACS2-narrowPeak-count
+    - MACS2_broadPeak_count
+    - MACS2_narrowPeak_count
+    - SEACR_relaxed_count
+    - SEACR_stringent_count
     - picard:
         name: "Insert Size"
         target: "Picard"
