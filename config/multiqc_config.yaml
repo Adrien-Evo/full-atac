@@ -35,18 +35,18 @@ module_order:
     - bowtie2:
         name: 'Alignment metrics'
     - samtools:
-        name: 'Read Counts (raw)'
+        name: 'Samtools Stats (raw)'
         info: 'Raw read counts'
         anchor: 'read_counts_raw'
         path_filters:
-            - '*.raw.bam.flagstat'  
+            - '*.raw.bam.stats'  
     - samtools:
-        name: 'Read Counts (filtered)'
+        name: 'Samtools Stats (filtered)'
         info: 'Read counts after filtering for properly aligned reads and MQ passed'
         anchor: 'Read_counts_filtered'
         target: ''
         path_filters:
-            - '*.sorted.bam.flagstat'
+            - '*.sorted.bam.stats'
     - fastqc
 
 table_columns_visible:
@@ -55,6 +55,8 @@ table_columns_visible:
     phantompeakqualtools:
         Estimated_Fragment_Length_bp: False
     FastQC: False
+    Samtools Stats (raw): False
+    Samtools Stats (filtered): False
 
 section_comments:
     deeptools_correlation: "Correlation from deepTools plotCorrelation based on read counts from multiBigwigSummary"

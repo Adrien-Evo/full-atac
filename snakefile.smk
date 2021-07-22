@@ -97,7 +97,7 @@ for samp in CONTROL_SAMP:
 
 #Checking if control has been found:
 if not bool(controlFile):
-    logger.warning("Can't file any controls/input named " + CONTROL_NAME + ". Exiting")
+    logger.warning("Can't file any controls/input named " + CONTROL_NAME + ". Will work without controls.")
 
 
 # Finding duplicate values from controlFile by flipping the dictionary
@@ -123,13 +123,10 @@ CONTROL_SAMPLE_DICT = {}
 for key, value in controlFile.items():
     CONTROL_SAMPLE_DICT[key] = mergedInputDict[value]
 
-print(CONTROL_SAMPLE_DICT)
 
 CONTROL_SAMPLE_MARK_DICT = {}
 for key, value in CONTROL_SAMPLE_DICT.items():
     for samp in FILES[key].keys():
-        print(samp)
-        print(CONTROL_NAME)
         if CONTROL_NAME not in samp: 
             CONTROL_SAMPLE_MARK_DICT[key + "_" + samp ]  = value
 
@@ -268,11 +265,11 @@ FASTQ_NAME_WITH_SUFFIX.extend(expand("{sample}_R2", sample = PAIRED_SAMPLES))
 # Checking dict
 #print("PAIRED      ", PAIRED_SAMPLES)
 #print("SAMPLES with full fastq path     ",ALL_SAMPLE_FILES)
-print("ALL_CONTROL     ", CONTROL_MERGED_FILES)
+#print("ALL_CONTROL     ", CONTROL_MERGED_FILES)
 #print("MARKS     ", MARKS)
 #print("MARKS_NO_CONTROL     ", MARKS_NO_CONTROL)
 #print("MARKS_COMPLETE_NAME     ", MARKS_COMPLETE_NAME)
-print("CONTROL_SAMPLE_DICT     ",CONTROL_SAMPLE_DICT)
+#print("CONTROL_SAMPLE_DICT     ",CONTROL_SAMPLE_DICT)
 #print("CONTROL_SAMPLE_MARK_DICT     ",CONTROL_SAMPLE_MARK_DICT)
 #print("R1 Paired SAMPLES with full fastq path     ",PAIRED_SAMPLES_DICT_FASTQ_R1)
 #print("R2 Paired SAMPLES with full fastq path     ",PAIRED_SAMPLES_DICT_FASTQ_R2)
@@ -346,8 +343,8 @@ ALL_FASTQC  = expand(os.path.join(WORKDIR, "QC/fastqc/{fname}_fastqc.zip"), fnam
 ALL_BOWTIE_LOG = expand(os.path.join(WORKDIR, "logs/{sample}.align"), sample = ALL_SAMPLES)
 ALL_INDEX = expand(os.path.join(WORKDIR, "alignment/bams/{sample}.sorted.bam.bai"), sample = ALL_SAMPLES)
 ALL_DOWNSAMPLE_INDEX = expand(os.path.join(WORKDIR, "downsampling/{sample}-downsample.sorted.bam.bai"), sample = ALL_SAMPLES)
-ALL_FLAGSTAT = expand(os.path.join(WORKDIR, "QC/flagstat/{sample}.sorted.bam.flagstat"), sample = ALL_SAMPLES)
-ALL_FLAGSTAT.extend(expand(os.path.join(WORKDIR, "QC/flagstat/{sample}.raw.bam.flagstat"), sample = ALL_SAMPLES))
+ALL_SAMTOOLSSTATS = expand(os.path.join(WORKDIR, "QC/samtoolsstats/{sample}.sorted.bam.stats"), sample = ALL_SAMPLES)
+ALL_SAMTOOLSSTATS.extend(expand(os.path.join(WORKDIR, "QC/samtoolsstats/{sample}.raw.bam.stats"), sample = ALL_SAMPLES))
 ALL_PHANTOM = expand(os.path.join(WORKDIR, "QC/phantompeakqualtools/{sample}.spp.out"), sample = ALL_SAMPLES)
 ALL_BIGWIG = expand(os.path.join(WORKDIR, "visualisation/bigwigs/{sample}.bw"), sample = ALL_SAMPLES)
 
@@ -423,7 +420,7 @@ ALL_HUB = [os.path.join(HUB_FOLDER,"{}.hub.txt").format(PROJECT_NAME)]
 # ======================================================== #
 
 # Depends on bam or fastq as input #
-ALL_MULTIQC_INPUT = ALL_PHANTOM + ALL_DPQC + ALL_FEATURECOUNTS +ALL_PEAKCOUNTS + ALL_ENCODE + ALL_TSS + ALL_FLAGSTAT
+ALL_MULTIQC_INPUT = ALL_PHANTOM + ALL_DPQC + ALL_FEATURECOUNTS +ALL_PEAKCOUNTS + ALL_ENCODE + ALL_TSS + ALL_SAMTOOLSSTATS
 if not BAM_INPUT:
     ALL_MULTIQC_INPUT.extend(ALL_ENCODE + ALL_FASTQC + ALL_BOWTIE_LOG + ALL_SAMBLASTER_LOG)
 
@@ -672,31 +669,29 @@ rule index_bam:
 ###########################################################################
 ############################### Downsampling ##############################
 ###########################################################################
-#  Using user provided parameters, bam will be downsampled. Flagstat is used for read counting and fed to sambamba  #
+#  Using user provided parameters, bam will be downsampled. Samtools stats is used for read counting and fed to sambamba  #
 
-# flagstat
-rule flagstat_raw_bam:
+rule samtoolsstats_raw_bam:
     input:  os.path.join(WORKDIR, "alignment/{sample}.raw.bam")
-    output: os.path.join(WORKDIR, "QC/flagstat/{sample}.raw.bam.flagstat")
-    log:    os.path.join(WORKDIR, "logs/{sample}.bam.flagstat")
+    output: os.path.join(WORKDIR, "QC/samtoolsstats/{sample}.raw.bam.stats")
+    log:    os.path.join(WORKDIR, "logs/{sample}.bam.stats")
     threads: 1
     params: jobname = "{sample}"
     shell:
         """
         source activate full-pipe-main-env
-        samtools flagstat {input} > {output} 2> {log}
+        samtools stats {input} > {output} 2> {log}
         """
-# flagstat
-rule flagstat_sorted_bam:
+rule samtoolsstats_sorted_bam:
     input:  os.path.join(WORKDIR, "alignment/bams/{sample}.sorted.bam")
-    output: os.path.join(WORKDIR, "QC/flagstat/{sample}.sorted.bam.flagstat")
-    log:    os.path.join(WORKDIR, "logs/{sample}.bam.flagstat")
+    output: os.path.join(WORKDIR, "QC/samtoolsstats/{sample}.sorted.bam.stats")
+    log:    os.path.join(WORKDIR, "logs/{sample}.bam.stats")
     threads: 1
     params: jobname = "{sample}"
     shell:
         """
         source activate full-pipe-main-env
-        samtools flagstat {input} > {output} 2> {log}
+        samtools stats {input} > {output} 2> {log}
         """
 
 
@@ -705,7 +700,7 @@ rule down_sample:
     input: 
         bam = os.path.join(WORKDIR, "alignment/bams/{sample}.sorted.bam"), 
         bai = os.path.join(WORKDIR, "alignment/bams/{sample}.sorted.bam.bai"), 
-        flagstat = os.path.join(WORKDIR, "QC/flagstat/{sample}.sorted.bam.flagstat")
+        stats = os.path.join(WORKDIR, "QC/stats/{sample}.sorted.bam.stats")
     output: 
         bam = os.path.join(WORKDIR, "alignment/downsampling/{sample}-downsample.sorted.bam"), 
         bai = os.path.join(WORKDIR, "alignment/downsampling/{sample}-downsample.sorted.bam.bai")
@@ -717,7 +712,7 @@ rule down_sample:
     shell:
         """
         source activate full-pipe-main-env
-        sambamba view -f bam -t {threads} --subsampling-seed=3 -s `sed '5q;d' {input.flagstat} | cut -d" " -f1 | awk '{{ratio = {config[target_reads]}/$0}};{{if(ratio < 1 )print ratio; else print 1}}'` {input.bam} | samtools sort -m 2G -@ 5 -T {output.bam}.tmp > {output.bam} 2> {log}
+        sambamba view -f bam -t {threads} --subsampling-seed=3 -s `grep "reads mapped:" {input.stats} | cut -f3 | awk '{{ratio = {config[target_reads]}/$0}};{{if(ratio < 1 )print ratio; else print 1}}'` {input.bam} | samtools sort -m 2G -@ 5 -T {output.bam}.tmp > {output.bam} 2> {log}
         samtools index {output.bam}
         """
 
