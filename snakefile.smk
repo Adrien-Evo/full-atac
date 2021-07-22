@@ -313,6 +313,8 @@ ALL_BIGBED = []
 ALL_FEATURECOUNTS = []
 ALL_BROADPEAKCOUNTS = []
 ALL_NARROWPEAKCOUNTS = []
+ALL_RELAXEDPEAKCOUNTS = []
+ALL_STRINGENTPEAKCOUNTS = []
 ALL_ANNOTATED_PEAKS = []
 
 # going through all cases samples (sample_mark) #
@@ -327,7 +329,10 @@ for sample_mark in CASES:
     ALL_STRINGENTPEAKCOUNTS.append(os.path.join(WORKDIR, "QC/{}-seacr-stringent-count_mqc.json").format(sample_mark))
     
     ALL_ANNOTATED_PEAKS.append(os.path.join(WORKDIR, "annotation/{}-peaks_annotated.txt").format(sample_mark))
-    
+   
+
+ALL_PEAKCOUNTS =  ALL_BROADPEAKCOUNTS + ALL_NARROWPEAKCOUNTS + ALL_RELAXEDPEAKCOUNTS + ALL_STRINGENTPEAKCOUNTS 
+
 # ~~~~~~~~~~~~~~~ Bam files ~~~~~~~~~~~~~~~ #
 CONTROL_BAM = expand(os.path.join(WORKDIR, "alignment/bams/{sample}.sorted.bam"), sample = CONTROL_MERGED_FILES)
 CASE_BAM = expand(os.path.join(WORKDIR, "alignment/bams/{sample}.sorted.bam"), sample = CASES)
@@ -418,7 +423,7 @@ ALL_HUB = [os.path.join(HUB_FOLDER,"{}.hub.txt").format(PROJECT_NAME)]
 # ======================================================== #
 
 # Depends on bam or fastq as input #
-ALL_MULTIQC_INPUT = ALL_PHANTOM + ALL_DPQC + ALL_FEATURECOUNTS + ALL_BROADPEAKCOUNTS + ALL_NARROWPEAKCOUNTS + ALL_ENCODE + ALL_TSS + ALL_FLAGSTAT
+ALL_MULTIQC_INPUT = ALL_PHANTOM + ALL_DPQC + ALL_FEATURECOUNTS +ALL_PEAKCOUNTS + ALL_ENCODE + ALL_TSS + ALL_FLAGSTAT
 if not BAM_INPUT:
     ALL_MULTIQC_INPUT.extend(ALL_ENCODE + ALL_FASTQC + ALL_BOWTIE_LOG + ALL_SAMBLASTER_LOG)
 
@@ -537,10 +542,11 @@ def get_control_downsampled_bais_with_input(wildcards):
 #TODO see if this is usefull
 localrules: all
 
-#rule all:
-#    input: TARGETS
+
 rule all:
-    input: ALL_SEACR_peaks
+    input: TARGETS
+#rule all:
+#    input: ALL_SEACR_peaks
 
 # Ordering rule for ambiguous cases for paired and single end management
 ruleorder: merge_fastqs_paired > merge_fastqs_single > fastqc
@@ -903,7 +909,7 @@ rule get_relaxed_peak_counts_for_multiqc:
     input:
         peaks = os.path.join(WORKDIR, "peak_calling/seacr/{case}.relaxed.bed")
     output:
-        os.path.join(WORKDIR, "QC/{case}-relaxed-count_mqc.json")
+        os.path.join(WORKDIR, "QC/{case}-seacr-relaxed-count_mqc.json")
     params:
         peakType = "SEACR relaxed"
     shell:
