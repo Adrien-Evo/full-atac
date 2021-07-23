@@ -700,7 +700,7 @@ rule down_sample:
     input: 
         bam = os.path.join(WORKDIR, "alignment/bams/{sample}.sorted.bam"), 
         bai = os.path.join(WORKDIR, "alignment/bams/{sample}.sorted.bam.bai"), 
-        stats = os.path.join(WORKDIR, "QC/stats/{sample}.sorted.bam.stats")
+        stats = os.path.join(WORKDIR, "QC/samtoolsstats/{sample}.sorted.bam.stats")
     output: 
         bam = os.path.join(WORKDIR, "alignment/downsampling/{sample}-downsample.sorted.bam"), 
         bai = os.path.join(WORKDIR, "alignment/downsampling/{sample}-downsample.sorted.bam.bai")
