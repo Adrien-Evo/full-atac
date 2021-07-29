@@ -789,7 +789,7 @@ rule computeMatrix_QC:
     input : get_big_wig_with_mark_or_tf 
     output : os.path.join(WORKDIR, "QC/{mark}.computeMatrix.gz")
     params : GENOME_TSS
-    threads: 4
+    threads: 8
     shell:
         """
         source activate full-pipe-main-env
@@ -1102,7 +1102,7 @@ rule get_bigwigs:
         spp = os.path.join(WORKDIR, "QC/phantompeakqualtools/{sample}.spp.out")
     output: os.path.join(WORKDIR, "visualisation/bigwigs/{sample}.bw")
     log: os.path.join(WORKDIR, "logs/{sample}.makebw")
-    threads: 4
+    threads: 8
     params: jobname = "{sample}"
     message: "Making bigwig of {sample}"
     shell:

@@ -27,6 +27,8 @@ mamba env create -f envs/full-pipe-spp.yml
 echo -e "Creating conda env for \e[32mMACS1.4\e[0m and \e[32mMACS2\e[0m"
 mamba env create -f envs/full-pipe-macs.yml
 
+echo -e "Creating conda env for \e[32mtss plots\e[0m"
+mamba env create -f envs/full-pipe-tss.yml
 
 echo -e "\e[33m#################################################\e[0m"
 echo -e "\e[33mInstalling data\e[0m"
