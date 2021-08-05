@@ -439,7 +439,6 @@ if not BAM_INPUT:
 #Here some of the ouputs of the rules are not used by multiQC and need adding to the rule all
 #TARGETS.extend(ALL_DPQC_PLOT)
 TARGETS.extend(ALL_PEAKS)
-
 # ~~~~~~~~~~~~~~~~ ChromHMM ~~~~~~~~~~~~~~~ #
 if config["chromHMM"]:
     TARGETS.extend(CHROMHMM)
@@ -542,8 +541,7 @@ localrules: all
 
 rule all:
     input: TARGETS
-#rule all:
-#    input: ALL_SEACR_peaks
+
 
 # Ordering rule for ambiguous cases for paired and single end management
 ruleorder: merge_fastqs_paired > merge_fastqs_single > fastqc
@@ -853,7 +851,7 @@ rule plotFingerPrint:
     shell:
         """
         source activate full-pipe-main-env
-        plotFingerprint -b {input.bam} --plotFile {output.plot} --region chr1 --skipZeros --numberOfSamples 100000 --minMappingQuality {config[MQ]} --plotTitle {wildcards.sample} --outRawCounts {output.rawCounts} --outQualityMetrics {output.qualityMetrics}
+        plotFingerprint -b {input.bam} --plotFile {output.plot} --region chr22 --skipZeros --numberOfSamples 100000 --minMappingQuality {config[MQ]} --plotTitle {wildcards.sample} --outRawCounts {output.rawCounts} --outQualityMetrics {output.qualityMetrics}
         """
 
 # Here featureCounts is used to compute the Fraction of reads in peaks. In case there is no peak called, a fake peak is added in the saf file to avoid featureCounts throwing an error and stopping the snakemake
