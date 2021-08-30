@@ -55,8 +55,10 @@ table_columns_visible:
     phantompeakqualtools:
         Estimated_Fragment_Length_bp: False
     FastQC: False
+    FastQC (raw): False
     Samtools Stats (raw): False
-    Samtools Stats (filtered): False
+    Samtools Stats (filtered):
+        raw_total_sequences: True
 
 section_comments:
     deeptools_correlation: "Correlation from deepTools plotCorrelation based on read counts from multiBigwigSummary"
