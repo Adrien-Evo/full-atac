@@ -678,6 +678,14 @@ rule samtoolsstats_raw_bam:
     input:  os.path.join(WORKDIR, "alignment/{sample}.raw.bam")
     output: os.path.join(WORKDIR, "QC/samtoolsstats/{sample}.raw.bam.stats")
     log:    os.path.join(WORKDIR, "logs/{sample}.bam.stats")
+    threads: 1
+    params: jobname = "{sample}"
+    shell:
+        """
+        source activate full-pipe-main-env
+        samtools stats {input} > {output} 2> {log}
+        """
+
 
 rule samtoolsstats_sorted_bam:
     input:  os.path.join(WORKDIR, "alignment/bams/{sample}.sorted.bam")
@@ -974,7 +982,7 @@ rule call_broad_peaks_macs2:
         source activate full-pipe-macs
         macs2 callpeak -t {input[0]} \
             {params.control} --keep-dup all -f {params.format} -g {config[macs2_g]} \
-            --outdir {params.outdir} -n {params.name} -p {config[macs2_pvalue]} --broad --broad-cutoff {config[macs2_pvalue_broad_cutoff]} &> {log}
+            --outdir {params.outdir} -n {params.name} -q {config[macs2_qvalue]} --broad --broad-cutoff {config[macs2_qvalue_broad_cutoff]} &> {log}
         """
 
 
@@ -1005,7 +1013,7 @@ rule call_narrow_peaks_macs2:
         source activate full-pipe-macs
         macs2 callpeak -t {input[0]} \
             {params.control} --nomodel --keep-dup all -f {params.format} -g {config[macs2_g]} \
-            --outdir {params.outdir} -n {params.name} &> {log}
+            --outdir {params.outdir} -n {params.name} -q {config[macs2_qvalue]} &> {log}
         """
 
 
