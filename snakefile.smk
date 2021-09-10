@@ -274,7 +274,7 @@ FASTQ_NAME_WITH_SUFFIX.extend(expand("{sample}_R2", sample = PAIRED_SAMPLES))
 #print("MARKS_NO_CONTROL     ", MARKS_NO_CONTROL)
 #print("MARKS_COMPLETE_NAME     ", MARKS_COMPLETE_NAME)
 #print("CONTROL_SAMPLE_DICT     ",CONTROL_SAMPLE_DICT)
-#print("CONTROL_SAMPLE_MARK_DICT     ",CONTROL_SAMPLE_MARK_DICT)
+print("CONTROL_SAMPLE_MARK_DICT     ",CONTROL_SAMPLE_MARK_DICT)
 #print("R1 Paired SAMPLES with full fastq path     ",PAIRED_SAMPLES_DICT_FASTQ_R1)
 #print("R2 Paired SAMPLES with full fastq path     ",PAIRED_SAMPLES_DICT_FASTQ_R2)
 #print("Single end SAMPLES with full fastq path     ",SINGLE_SAMPLES_DICT_FASTQ)
@@ -441,7 +441,8 @@ if not BAM_INPUT:
 #Here some of the ouputs of the rules are not used by multiQC and need adding to the rule all
 #TARGETS.extend(ALL_DPQC_PLOT)
 TARGETS.extend(ALL_PEAKS)
-
+#temp
+TARGETS.extend(ALL_BIGWIG_INPUT)
 # ~~~~~~~~~~~~~~~~ ChromHMM ~~~~~~~~~~~~~~~ #
 if config["chromHMM"]:
     TARGETS.extend(CHROMHMM)
@@ -526,8 +527,10 @@ def get_peaks(wildcards):
 def get_control_downsampled_bais(wildcards):
     return os.path.join(WORKDIR, "alignment/downsampling/"+ CONTROL_SAMPLE_MARK_DICT[wildcards.case] + "-downsample.sorted.bam.bai"),
 
-def get_control_downsampled_bams_with_input(wildcards):
-    return os.path.join(WORKDIR, "alignment/downsampling/"+ CONTROL_SAMPLE_MARK_DICT[wildcards.casewithcontrol] + "-downsample.sorted.bam"),
+def get_control_bigwigs_with_input(wildcards):
+    print(wildcards)
+    print(WORKDIR)
+    return os.path.join(WORKDIR,"visualisation/bigwigs/"+ CONTROL_SAMPLE_MARK_DICT[wildcards.casewithcontrol] + ".bw"),
 
 def get_control_downsampled_bais_with_input(wildcards):
     return os.path.join(WORKDIR, "alignment/downsampling/"+ CONTROL_SAMPLE_MARK_DICT[wildcards.casewithcontrol] + "-downsample.sorted.bam.bai"),
@@ -1084,28 +1087,6 @@ rule call_relaxed_peaks_seacr:
         SEACR_1.3.sh {input[0]} {params.control} non relaxed {params.prefix}
         """
 
-###########################################################################
-####### VISUALIZATION bigWig and bigBed generation and HUB creation #######
-###########################################################################
-# rule get_bigwigs_using_inputs:
-#     input : 
-#         case =  os.path.join(WORKDIR, "alignment/downsampling/{casewithcontrol}-downsample.sorted.bam"),
-#         bai_case = os.path.join(WORKDIR, "alignment/downsampling/{casewithcontrol}-downsample.sorted.bam.bai"),
-#         control = get_control_downsampled_bams_with_input, 
-#         bai_control = get_control_downsampled_bais_with_input,
-#         spp = os.path.join(WORKDIR, "QC/phantompeakqualtools/{casewithcontrol}.spp.out")
-#     output:  os.path.join(WORKDIR, "visualisation/bigwigs_with_control/{casewithcontrol}.bw")
-#     log: os.path.join(WORKDIR, "logs/{casewithcontrol}.makebw")
-#     threads: 4
-#     params: jobname = "{casewithcontrol}"
-#     message: "Making bigwig of {casewithcontrol} log2 fold change versus its control"
-#     shell:
-#         """
-#         source activate full-pipe-main-env
-#         bamCompare --bamfile1 {input.case} --bamfile2 {input.control} \
-#         --normalizeUsing RPKM  --operation log2 --operation first --scaleFactorsMethod None --binSize 30 --smoothLength 150 --numberOfProcessors {threads} \
-#         --extendReads `cut -f3 {input.spp} | awk 'BEGIN{{FS=","}}{{print $1}}'` -o {output} 2> {log}
-#         """
 
 # ~~~~~~~~~~~~~~~~ SPIKE in Normalisation ~~~~~~~~~~~~~~~ #
 
@@ -1215,6 +1196,21 @@ rule get_bigwigs:
         source activate full-pipe-main-env
         bamCoverage -b {input.bam} --scaleFactor `cat {input.scaling_factor}` --binSize 10  --smoothLength 30 --ignoreDuplicates\
         --numberOfProcessors {threads} --extendReads -o {output} 2> {log}
+        """
+
+rule get_bigwigs_using_inputs:
+    input : 
+        case =  os.path.join(WORKDIR, "visualisation/bigwigs/{casewithcontrol}.bw"),
+        control = get_control_bigwigs_with_input
+    output:  os.path.join(WORKDIR, "visualisation/bigwigs_with_control/{casewithcontrol}.bw")
+    log: os.path.join(WORKDIR, "logs/{casewithcontrol}.makebwinput")
+    threads: 4
+    shell:
+        """
+        source activate full-pipe-main-env
+        bamCompare --bamfile1 {input.case} --bamfile2 {input.control} \
+        --operation log2 --scaleFactors 1:1 --binSize 30 --smoothLength 150 --numberOfProcessors {threads} \
+        --extendReads -o {output} 2> {log}
         """
 
 # Cleaning peaks by taking only columns 1, 2, 3 because narrowpeaks and broadpeaks are different.
