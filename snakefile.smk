@@ -1106,7 +1106,7 @@ rule call_relaxed_peaks_seacr:
 #         --normalizeUsing RPKM  --operation log2 --operation first --scaleFactorsMethod None --binSize 30 --smoothLength 150 --numberOfProcessors {threads} \
 #         --extendReads `cut -f3 {input.spp} | awk 'BEGIN{{FS=","}}{{print $1}}'` -o {output} 2> {log}
 #         """
-# Get a 10kb windows of the genome, filtering for blacklist regions
+
 # ~~~~~~~~~~~~~~~~ SPIKE in Normalisation ~~~~~~~~~~~~~~~ #
 
 if SPIKE_IN:
