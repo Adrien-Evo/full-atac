@@ -361,7 +361,6 @@ ALL_ENCODE = expand(os.path.join(WORKDIR, "QC/encodeQC/{sample}.encodeQC.txt"), 
 # ~~ Just sample with control ~~ #
 
 ALL_BIGWIG_INPUT = expand(os.path.join(WORKDIR, "visualisation/bigwigs_with_control/{casewithcontrol}.bw"), casewithcontrol = CONTROL_SAMPLE_MARK_DICT)
-
 # ~~~~~~~~~~~ Deeptools specific ~~~~~~~~~~ #
 # ---- Grouped by marks ---- #
 ALL_COMPUTEMATRIX = expand(os.path.join(WORKDIR, "QC/{mark}.computeMatrix.gz"), mark = MARKS)
@@ -426,6 +425,8 @@ ALL_HUB = [os.path.join(HUB_FOLDER,"{}.hub.txt").format(PROJECT_NAME)]
 ALL_MULTIQC_INPUT = ALL_PHANTOM + ALL_DPQC + ALL_FEATURECOUNTS +ALL_PEAKCOUNTS + ALL_ENCODE + ALL_TSS + ALL_SAMTOOLSSTATS
 if not BAM_INPUT:
     ALL_MULTIQC_INPUT.extend(ALL_ENCODE + ALL_FASTQC + ALL_BOWTIE_LOG + ALL_SAMBLASTER_LOG)
+#temp
+ALL_MULTIQC_INPUT.extend(ALL_BIGWIG_INPUT)
 
 ###########################################################################
 ########################### Targets for rule all ##########################
@@ -525,15 +526,13 @@ def get_peaks(wildcards):
 
 
 def get_control_downsampled_bais(wildcards):
-    return os.path.join(WORKDIR, "alignment/downsampling/"+ CONTROL_SAMPLE_MARK_DICT[wildcards.case] + "-downsample.sorted.bam.bai"),
+    return os.path.join(WORKDIR, "alignment/downsampling/"+ CONTROL_SAMPLE_MARK_DICT[wildcards.case] + "-downsample.sorted.bam.bai")
 
 def get_control_bigwigs_with_input(wildcards):
-    print(wildcards)
-    print(WORKDIR)
-    return os.path.join(WORKDIR,"visualisation/bigwigs/"+ CONTROL_SAMPLE_MARK_DICT[wildcards.casewithcontrol] + ".bw"),
+    return os.path.join(WORKDIR,"visualisation/bigwigs/"+ CONTROL_SAMPLE_MARK_DICT[wildcards.casewithcontrol] + ".bw")
 
 def get_control_downsampled_bais_with_input(wildcards):
-    return os.path.join(WORKDIR, "alignment/downsampling/"+ CONTROL_SAMPLE_MARK_DICT[wildcards.casewithcontrol] + "-downsample.sorted.bam.bai"),
+    return os.path.join(WORKDIR, "alignment/downsampling/"+ CONTROL_SAMPLE_MARK_DICT[wildcards.casewithcontrol] + "-downsample.sorted.bam.bai")
 
 
 
@@ -1204,13 +1203,13 @@ rule get_bigwigs_using_inputs:
         control = get_control_bigwigs_with_input
     output:  os.path.join(WORKDIR, "visualisation/bigwigs_with_control/{casewithcontrol}.bw")
     log: os.path.join(WORKDIR, "logs/{casewithcontrol}.makebwinput")
-    threads: 4
+    threads: 8 
     shell:
         """
         source activate full-pipe-main-env
-        bamCompare --bamfile1 {input.case} --bamfile2 {input.control} \
-        --operation log2 --scaleFactors 1:1 --binSize 30 --smoothLength 150 --numberOfProcessors {threads} \
-        --extendReads -o {output} 2> {log}
+        bigwigCompare -b1 {input.case} -b2 {input.control} \
+        --operation log2 --scaleFactors 1:1 --numberOfProcessors {threads} \
+        -o {output} 2> {log}
         """
 
 # Cleaning peaks by taking only columns 1, 2, 3 because narrowpeaks and broadpeaks are different.
@@ -1230,7 +1229,7 @@ rule get_bigbeds:
 rule get_UCSC_hub:
     input:  
         bed = ALL_BIGBED, 
-        bigwig = ALL_BIGWIG
+        bigwig = ALL_BIGWIG_INPUT
     output:
         ALL_HUB
     log: os.path.join(WORKDIR, "logs/log.trackhub")
