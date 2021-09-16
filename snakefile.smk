@@ -1062,10 +1062,11 @@ rule call_stringent_peaks_seacr:
             if wildcards.case in CONTROL_SAMPLE_MARK_DICT
             else ["0.01"]
         )
+    log: os.path.join(WORKDIR, "logs/{case}.stringent.seacr")
     shell:
         """
         source activate full-pipe-main-env
-        SEACR_1.3.sh {input[0]} {params.control} non stringent {params.prefix}
+        scripts/SEACR_1.4.sh -b {input[0]} -c {params.control} -n non -m stringent -o {params.prefix}
         """
 
 rule call_relaxed_peaks_seacr:
@@ -1080,10 +1081,11 @@ rule call_relaxed_peaks_seacr:
             if wildcards.case in CONTROL_SAMPLE_MARK_DICT
             else ["0.01"]
         )
+    log: os.path.join(WORKDIR, "logs/{case}.relaxed.seacr")
     shell:
         """
         source activate full-pipe-main-env
-        SEACR_1.3.sh {input[0]} {params.control} non relaxed {params.prefix}
+        scripts/SEACR_1.4.sh -b {input[0]} -c {params.control} -n non -m relaxed -o {params.prefix}
         """
 
 
