@@ -1,5 +1,4 @@
-snakejob*
+logs/snakejob*
 .snakemake*
-out/*
 scripts/big*
 scripts/*ToBig*
