@@ -52,8 +52,8 @@ with open(args.meta, "r") as f:
         elif paired == "yes":
             paired_dic[sample_name] = 1
             fastq_full_path = [x for x in fastq_paths if fastq_name in x]
-            fastq_R1_full_path = [x for x in fastq_full_path if ("R1" in x or "_1" in x)]
-            fastq_R2_full_path = [x for x in fastq_full_path if ("R2" in x or "_2" in x)]
+            fastq_R1_full_path = [x for x in fastq_full_path if ("R1" in x )]
+            fastq_R2_full_path = [x for x in fastq_full_path if ("R2" in x )]
             if fastq_full_path:
                 FILES[sample_name][sample_type] = {"R1" : fastq_R1_full_path ,"R2" : fastq_R2_full_path}
             else:

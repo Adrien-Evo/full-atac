@@ -54,6 +54,9 @@ where directory contains all the fastq.gz needed
 
 # Launching the pipeline
 
+```
+snakemake --snakefile snakefile.smk --use-conda --cluster "sleep 1s && qsub -q max-7d.q" --jobs 50 --jobscript job.sh --configfile config.yaml
+```
 
 # Inspecting the output
 

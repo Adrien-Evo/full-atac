@@ -1,4 +1,4 @@
-PROJECT_NAME: 'GEO'
+PROJECT_NAME: 'NTS-280'
 
 
 # Path to a JSON file with samples and their corresponding FASTQ files.
@@ -6,10 +6,13 @@ SAMPLES_JSON: './test/samples_test_1.json'
 OUTPUT_DIR: '/SCRATCH-BIRD/users/foucal-a/chiptest'
 
 # Name of your input
-control: 'Input'
+control: 'CTRLNEG'
 
 bam: False
 cutrun: "chat"
+
+
+
 #####################################################
 ##########  Genome data #############################
 #####################################################
@@ -21,7 +24,7 @@ idx_bt2: '/LAB-DATA/BiRD/resources/species/human/ensembl/release-75/index-bowtie
 genome_fasta: '/LAB-DATA/BiRD/resources/species/human/ensembl/release-75/Homo_sapiens.GRCh37.75.dna.toplevel.fa'
 
 # - your genome  :
-genome_size: '/LAB-DATA/BiRD/resources/species/human/ensembl/release-75/index-bowtie-2.3.0/Homo_sapiens.GRCh37.75.dna.toplevel.fa.fai'
+genome_size: '/LAB-DATA/BiRD/resources/species/human/ensembl/release-75/Homo_sapiens.GRCh37.75.dna.toplevel.fa.fai'
 
 # - genome annotation gtf file :
 genome_gtf: 'data/homo_sapiens/Homo_sapiens.GRCh37.87.gtf'
@@ -33,26 +36,46 @@ genome_tss: 'data/GRCh37_TSS.bed'
 blacklist: 'data/Blacklist-2.0/lists/hg19-blacklist.v2.bed'
 
 #####################################################
-##########  Alignment #############################
+##########  Normalisation methods ###################
+#####################################################
+# - Downsampling. Set the number of reads for downsampling
+downsampling: False
+target_reads: 30000000
+
+spike_in: True
+scaling_multiplier: 10000
+# - Index for bowtie2
+idx_bt2_spike: '/SCRATCH-BIRD/users/foucal-a/yeast/R64-1-1'
+
+deseq2_normalization: False
+
+#####################################################
+############  Alignment #############################
 #####################################################
 
 # - Alignment quality threshold
-MQ: 20
+MQ: 30
 
 
-# - Downsampling. Set the number of reads for downsampling
-target_reads: 30000000
 
+#####################################################
+############  Peak calling  #########################
+#####################################################
 
 # MACS parameters for peak calling
 macs_g: hs
 macs_pvalue: 1e-5
 macs2_g: hs
 macs2_pvalue: 1e-5
-macs2_pvalue_broad_cutoff: 1e-5
+macs2_pvalue_broad_cutoff: 0.05
 
 # config file for narrow or broad peak calling for all
 narrow_broad: './config/broad_narrow_histone_TF.yaml'
+
+#####################################################
+###################  Extra  #########################
+#####################################################
+
 
 # ~~~~~~~~~~~~~~~~ ChromHMM ~~~~~~~~~~~~~~~~~
 # - run chromHMM or not --- chromHMM: True  || chromHMM: False
@@ -60,7 +83,7 @@ chromHMM: False
 # ---- chromHMM bin size -----
 binsize: 200
 # ---- Number of states -----
-state: 4
+state: 9
 
 
 ## histone marks that you want to include in the chromHMM model
@@ -72,5 +95,3 @@ histone_for_chromHMM:
   - H3K4me3
   - H3K27ac
   - H3K27me3
-
-

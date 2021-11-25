@@ -20,6 +20,10 @@ PROJECT_NAME = config['PROJECT_NAME']
 BAM_INPUT = config['bam']
 CUTRUN_SAMPLES = config['cutrun']
 NARROW_BROAD = yaml.safe_load(open(config['narrow_broad']))
+SPIKE_IN = config['spike_in']
+SCALING_MULTIPLIER = config['scaling_multiplier']
+DESEQ2_NORMALIZATION = config['deseq2_normalization']
+DOWNSAMPLING = config ['downsampling']
 # -- genome related config - #
 GENOME_FASTA = config['genome_fasta']
 GENOME_GTF = config['genome_gtf']
@@ -270,7 +274,7 @@ FASTQ_NAME_WITH_SUFFIX.extend(expand("{sample}_R2", sample = PAIRED_SAMPLES))
 #print("MARKS_NO_CONTROL     ", MARKS_NO_CONTROL)
 #print("MARKS_COMPLETE_NAME     ", MARKS_COMPLETE_NAME)
 #print("CONTROL_SAMPLE_DICT     ",CONTROL_SAMPLE_DICT)
-#print("CONTROL_SAMPLE_MARK_DICT     ",CONTROL_SAMPLE_MARK_DICT)
+print("CONTROL_SAMPLE_MARK_DICT     ",CONTROL_SAMPLE_MARK_DICT)
 #print("R1 Paired SAMPLES with full fastq path     ",PAIRED_SAMPLES_DICT_FASTQ_R1)
 #print("R2 Paired SAMPLES with full fastq path     ",PAIRED_SAMPLES_DICT_FASTQ_R2)
 #print("Single end SAMPLES with full fastq path     ",SINGLE_SAMPLES_DICT_FASTQ)
@@ -296,7 +300,6 @@ def get_chr(chromSize):
     return(chr)
 
 CANONICAL_CHR = get_chr(get_canonical_chromSize(GENOME_SIZE))
-print(CANONICAL_CHR)
 ###########################################################################
 ########################### Listing OUTPUT FILES ##########################
 ###########################################################################
@@ -358,7 +361,6 @@ ALL_ENCODE = expand(os.path.join(WORKDIR, "QC/encodeQC/{sample}.encodeQC.txt"), 
 # ~~ Just sample with control ~~ #
 
 ALL_BIGWIG_INPUT = expand(os.path.join(WORKDIR, "visualisation/bigwigs_with_control/{casewithcontrol}.bw"), casewithcontrol = CONTROL_SAMPLE_MARK_DICT)
-
 # ~~~~~~~~~~~ Deeptools specific ~~~~~~~~~~ #
 # ---- Grouped by marks ---- #
 ALL_COMPUTEMATRIX = expand(os.path.join(WORKDIR, "QC/{mark}.computeMatrix.gz"), mark = MARKS)
@@ -423,6 +425,8 @@ ALL_HUB = [os.path.join(HUB_FOLDER,"{}.hub.txt").format(PROJECT_NAME)]
 ALL_MULTIQC_INPUT = ALL_PHANTOM + ALL_DPQC + ALL_FEATURECOUNTS +ALL_PEAKCOUNTS + ALL_ENCODE + ALL_TSS + ALL_SAMTOOLSSTATS
 if not BAM_INPUT:
     ALL_MULTIQC_INPUT.extend(ALL_ENCODE + ALL_FASTQC + ALL_BOWTIE_LOG + ALL_SAMBLASTER_LOG)
+#temp
+ALL_MULTIQC_INPUT.extend(ALL_BIGWIG_INPUT)
 
 ###########################################################################
 ########################### Targets for rule all ##########################
@@ -431,7 +435,6 @@ TARGETS = []
 TARGETS.extend(ALL_ANNOTATED_PEAKS)
 TARGETS.extend(ALL_MULTIQC)
 TARGETS.extend(ALL_HUB)
-#print(ALL_MULTIQC_INPUT)
 # Since output from bam input are not used as input, needs to be put in the rule all for execution #
 if not BAM_INPUT:
     TARGETS.extend(ALL_CONFIG)
@@ -439,6 +442,8 @@ if not BAM_INPUT:
 #Here some of the ouputs of the rules are not used by multiQC and need adding to the rule all
 #TARGETS.extend(ALL_DPQC_PLOT)
 TARGETS.extend(ALL_PEAKS)
+#temp
+TARGETS.extend(ALL_BIGWIG_INPUT)
 # ~~~~~~~~~~~~~~~~ ChromHMM ~~~~~~~~~~~~~~~ #
 if config["chromHMM"]:
     TARGETS.extend(CHROMHMM)
@@ -521,13 +526,13 @@ def get_peaks(wildcards):
 
 
 def get_control_downsampled_bais(wildcards):
-    return os.path.join(WORKDIR, "alignment/downsampling/"+ CONTROL_SAMPLE_MARK_DICT[wildcards.case] + "-downsample.sorted.bam.bai"),
+    return os.path.join(WORKDIR, "alignment/downsampling/"+ CONTROL_SAMPLE_MARK_DICT[wildcards.case] + "-downsample.sorted.bam.bai")
 
-def get_control_downsampled_bams_with_input(wildcards):
-    return os.path.join(WORKDIR, "alignment/downsampling/"+ CONTROL_SAMPLE_MARK_DICT[wildcards.casewithcontrol] + "-downsample.sorted.bam"),
+def get_control_bigwigs_with_input(wildcards):
+    return os.path.join(WORKDIR,"visualisation/bigwigs/"+ CONTROL_SAMPLE_MARK_DICT[wildcards.casewithcontrol] + ".bw")
 
 def get_control_downsampled_bais_with_input(wildcards):
-    return os.path.join(WORKDIR, "alignment/downsampling/"+ CONTROL_SAMPLE_MARK_DICT[wildcards.casewithcontrol] + "-downsample.sorted.bam.bai"),
+    return os.path.join(WORKDIR, "alignment/downsampling/"+ CONTROL_SAMPLE_MARK_DICT[wildcards.casewithcontrol] + "-downsample.sorted.bam.bai")
 
 
 
@@ -613,6 +618,7 @@ if BAM_INPUT == False:
             | samtools sort -m 8G -@ 4 -T {output}.tmp -o {output} 2> {log}
             """
     
+    
     # This rule is not followed by other rules, so its output has to be added to the rule all conditionally on BAM_INPUT, if Bam are used as input or not #
     rule create_bam_json:
         input: expand(os.path.join(WORKDIR, "alignment/bams/{sample}.sorted.bam"), sample = ALL_SAMPLES),
@@ -635,6 +641,7 @@ if BAM_INPUT == False:
 
             with open(output[0],'w') as outFile:
                 outFile.write(json.dumps(dict_for_json, indent = 4))
+
 
 
 ###########################################################################
@@ -664,10 +671,9 @@ rule index_bam:
         samtools index {input} 2> {log}
         """
 
-###########################################################################
+###########################################################################rule
 ############################### Downsampling ##############################
 ###########################################################################
-#  Using user provided parameters, bam will be downsampled. Samtools stats is used for read counting and fed to sambamba  #
 
 rule samtoolsstats_raw_bam:
     input:  os.path.join(WORKDIR, "alignment/{sample}.raw.bam")
@@ -680,6 +686,8 @@ rule samtoolsstats_raw_bam:
         source activate full-pipe-main-env
         samtools stats {input} > {output} 2> {log}
         """
+
+
 rule samtoolsstats_sorted_bam:
     input:  os.path.join(WORKDIR, "alignment/bams/{sample}.sorted.bam")
     output: os.path.join(WORKDIR, "QC/samtoolsstats/{sample}.sorted.bam.stats")
@@ -692,7 +700,7 @@ rule samtoolsstats_sorted_bam:
         samtools stats {input} > {output} 2> {log}
         """
 
-
+#  Using user provided parameters, bam will be downsampled. Samtools stats is used for read counting and fed to sambamba  #
 #downsampling
 rule down_sample:
     input: 
@@ -936,11 +944,17 @@ def get_bam_peak_calling_input(wildcards):
     
     input_for_peak_calling = []
     #Checking if paired or not
-    input_for_peak_calling.append(os.path.join(WORKDIR, "alignment/downsampling/" + wildcards.case + "-downsample.sorted.bam"))
-        #Checking if sample has a control
-    if wildcards.case in CONTROL_SAMPLE_MARK_DICT.keys() :
-        input_for_peak_calling.append(os.path.join(WORKDIR, "alignment/downsampling/"+ CONTROL_SAMPLE_MARK_DICT[wildcards.case] + "-downsample.sorted.bam"))
-    
+    if DOWNSAMPLING: 
+        input_for_peak_calling.append(os.path.join(WORKDIR, "alignment/downsampling/" + wildcards.case + "-downsample.sorted.bam"))
+            #Checking if sample has a control
+        if wildcards.case in CONTROL_SAMPLE_MARK_DICT.keys() :
+            input_for_peak_calling.append(os.path.join(WORKDIR, "alignment/downsampling/"+ CONTROL_SAMPLE_MARK_DICT[wildcards.case] + "-downsample.sorted.bam"))
+    else:     
+        input_for_peak_calling.append(os.path.join(WORKDIR, "alignment/bams/" + wildcards.case + ".sorted.bam"))
+            #Checking if sample has a control
+        if wildcards.case in CONTROL_SAMPLE_MARK_DICT.keys() :
+            input_for_peak_calling.append(os.path.join(WORKDIR, "alignment/bams/"+ CONTROL_SAMPLE_MARK_DICT[wildcards.case] + ".sorted.bam"))
+        
     return input_for_peak_calling
 
 
@@ -969,7 +983,7 @@ rule call_broad_peaks_macs2:
         source activate full-pipe-macs
         macs2 callpeak -t {input[0]} \
             {params.control} --keep-dup all -f {params.format} -g {config[macs2_g]} \
-            --outdir {params.outdir} -n {params.name} -p {config[macs2_pvalue]} --broad --broad-cutoff {config[macs2_pvalue_broad_cutoff]} &> {log}
+            --outdir {params.outdir} -n {params.name} -q {config[macs2_qvalue]} --broad --broad-cutoff {config[macs2_qvalue_broad_cutoff]} &> {log}
         """
 
 
@@ -1000,14 +1014,15 @@ rule call_narrow_peaks_macs2:
         source activate full-pipe-macs
         macs2 callpeak -t {input[0]} \
             {params.control} --nomodel --keep-dup all -f {params.format} -g {config[macs2_g]} \
-            --outdir {params.outdir} -n {params.name} &> {log}
+            --outdir {params.outdir} -n {params.name} -q {config[macs2_qvalue]} &> {log}
         """
 
 
 # Peak calling using seacr for cutrun samples 
 rule get_input_for_seacr:
     input: 
-        bam = os.path.join(WORKDIR, "alignment/bams/{sample}.sorted.bam") 
+        bam = os.path.join(WORKDIR, "alignment/bams/{sample}.sorted.bam"),
+        scaling_factor = os.path.join(WORKDIR, "visualisation/normalisation/{sample}_scalingfactor.txt")
     output: 
         bedgraph = os.path.join(WORKDIR, "peak_calling/seacr/{sample}.fragments.bedgraph")
     params:
@@ -1019,10 +1034,10 @@ rule get_input_for_seacr:
         bedtools bamtobed -bedpe -i {input.bam} > {params.prefix}.bed
         awk '$1==$4 && $6-$2 < 1000 {{print $0}}' {params.prefix}.bed > {params.prefix}.clean.bed
         cut -f 1,2,6 {params.prefix}.clean.bed | sort -k1,1 -k2,2n -k3,3n > {params.prefix}.fragments.bed
-        bedtools genomecov -bg -i {params.prefix}.fragments.bed -g {params.genome_size} > {output.bedgraph}
+        bedtools genomecov -scale `cat {input.scaling_factor}` -bg -i {params.prefix}.fragments.bed -g {params.genome_size} > {output.bedgraph}
         """
 
-def get_bam_peak_calling_input_seacr(wildcards):
+def get_bedgraph_peak_calling_input_seacr(wildcards):
     
     input_for_peak_calling = []
     #Checking if paired or not
@@ -1036,7 +1051,7 @@ def get_bam_peak_calling_input_seacr(wildcards):
 #Here if the case sample has a control, then its going to be used. Else it's the numeric threshold
 rule call_stringent_peaks_seacr:
     input: 
-        get_bam_peak_calling_input_seacr 
+        get_bedgraph_peak_calling_input_seacr 
     output: 
         stringent = os.path.join(WORKDIR, "peak_calling/seacr/{case}.stringent.bed")
     params:
@@ -1046,15 +1061,16 @@ rule call_stringent_peaks_seacr:
             if wildcards.case in CONTROL_SAMPLE_MARK_DICT
             else ["0.01"]
         )
+    log: os.path.join(WORKDIR, "logs/{case}.stringent.seacr")
     shell:
         """
         source activate full-pipe-main-env
-        SEACR_1.3.sh {input[0]} {params.control} norm stringent {params.prefix}
+        scripts/SEACR_1.4.sh -b {input[0]} -c {params.control} -n non -m stringent -o {params.prefix}
         """
 
 rule call_relaxed_peaks_seacr:
     input: 
-        get_bam_peak_calling_input_seacr 
+        get_bedgraph_peak_calling_input_seacr 
     output: 
         stringent = os.path.join(WORKDIR, "peak_calling/seacr/{case}.relaxed.bed")
     params:
@@ -1064,50 +1080,137 @@ rule call_relaxed_peaks_seacr:
             if wildcards.case in CONTROL_SAMPLE_MARK_DICT
             else ["0.01"]
         )
+    log: os.path.join(WORKDIR, "logs/{case}.relaxed.seacr")
     shell:
         """
         source activate full-pipe-main-env
-        SEACR_1.3.sh {input[0]} {params.control} norm relaxed {params.prefix}
+        scripts/SEACR_1.4.sh -b {input[0]} -c {params.control} -n non -m relaxed -o {params.prefix}
         """
 
-###########################################################################
-####### VISUALIZATION bigWig and bigBed generation and HUB creation #######
-###########################################################################
-# rule get_bigwigs_using_inputs:
-#     input : 
-#         case =  os.path.join(WORKDIR, "alignment/downsampling/{casewithcontrol}-downsample.sorted.bam"),
-#         bai_case = os.path.join(WORKDIR, "alignment/downsampling/{casewithcontrol}-downsample.sorted.bam.bai"),
-#         control = get_control_downsampled_bams_with_input, 
-#         bai_control = get_control_downsampled_bais_with_input,
-#         spp = os.path.join(WORKDIR, "QC/phantompeakqualtools/{casewithcontrol}.spp.out")
-#     output:  os.path.join(WORKDIR, "visualisation/bigwigs_with_control/{casewithcontrol}.bw")
-#     log: os.path.join(WORKDIR, "logs/{casewithcontrol}.makebw")
-#     threads: 4
-#     params: jobname = "{casewithcontrol}"
-#     message: "Making bigwig of {casewithcontrol} log2 fold change versus its control"
-#     shell:
-#         """
-#         source activate full-pipe-main-env
-#         bamCompare --bamfile1 {input.case} --bamfile2 {input.control} \
-#         --normalizeUsing RPKM  --operation log2 --operation first --scaleFactorsMethod None --binSize 30 --smoothLength 150 --numberOfProcessors {threads} \
-#         --extendReads `cut -f3 {input.spp} | awk 'BEGIN{{FS=","}}{{print $1}}'` -o {output} 2> {log}
-#         """
+
+# ~~~~~~~~~~~~~~~~ SPIKE in Normalisation ~~~~~~~~~~~~~~~ #
+
+if SPIKE_IN:
+
+    rule spike_scaling_factor:
+        input:  get_fastq
+        output: 
+            os.path.join(WORKDIR, "visualisation/normalisation/{sample}_scalingfactor.txt")
+        threads: 16
+        log:    
+            bowtie = os.path.join(WORKDIR, "logs/{sample}.spike.align")
+        params:
+            input= (
+                lambda wildcards, input: ["-U", input]
+                if wildcards.sample in SINGLE_SAMPLES
+                else ["-1", input[0], "-2", input[1], "-I", "0", "-X", "2000",]
+                ),
+            options = "--end-to-end --very-sensitive --no-mixed --no-discordant --no-overlap --no-dovetail",
+            scaling_multiplier = SCALING_MULTIPLIER
+        shell:
+            """
+            source activate full-pipe-main-env
+            bowtie2 --threads {threads} -x {config[idx_bt2_spike]} {params.input} {params.options} 2> {log.bowtie} \
+            | samtools view -c -F 0x04 | awk '{{print {params.scaling_multiplier}/($1/2)}}' > {output}
+            """
+
+elif DESEQ2_NORMALIZATION:
+
+    rule get_genome_window:
+        input:
+            genome_length = {GENOME_SIZE}
+        output:
+            genome_window = os.path.join(WORKDIR, "visualisation/normalisation/genome_window.bed"),
+            genome_window_temp = temp(os.path.join(WORKDIR, "visualisation/normalisation/genome_window_temp.bed"))
+        params:
+            blacklist = BLACKLIST_DCC
+        shell:
+            """
+            source activate full-pipe-main-env
+            bedtools makewindows -g {input} -w 10000 > {output.genome_window_temp}
+            bedtools intersect -a {output.genome_window_temp} -b {params.blacklist} -v > {output.genome_window}
+            """
+
+    # Get a raw read count using featureCount and the genome window
+    rule get_raw_count:
+        input:
+            bam = os.path.join(WORKDIR, "alignment/bams/{sample}.sorted.bam"),  
+            bai = os.path.join(WORKDIR, "alignment/bams/{sample}.sorted.bam.bai"),
+            genome_window = os.path.join(WORKDIR, "visualisation/normalisation/genome_window.bed")
+        output:
+            rawcounts = temp(os.path.join(WORKDIR, "visualisation/normalisation/{sample}.rawcounts")),
+            saf = temp(os.path.join(WORKDIR, "visualisation/normalisation/{sample}.saf"))
+        shell:  
+            """
+            source activate full-pipe-main-env
+            awk 'BEGIN{{OFS="\t";print "GeneID", "Chr","Start","End","Strand";n=1}}{{print "window_"n,$1,$2,$3,"."; n = n +1}}' {input.genome_window} > {output.saf}
+            featureCounts -a {output.saf} -F SAF -o {output.rawcounts} {input.bam}
+            """
+
+    # Aggregate all raw read counts into one file for DESEQ2 processing
+    rule get_aggregate_raw_count:
+        input:
+            raw_counts = expand(os.path.join(WORKDIR, "visualisation/normalisation/{sample}.rawcounts"), sample = ALL_SAMPLES)
+        output:
+            aggregated_raw_counts = os.path.join(WORKDIR, "visualisation/normalisation/rawcounts.all.txt"),
+            tmp_counts = temp(expand(os.path.join(WORKDIR, "visualisation/normalisation/{sample}.rawcounts.tmp"), sample = ALL_SAMPLES))
+        shell:
+            """
+            for i in {input}; do f=$(basename $i);echo ${{f/.rawcounts/}} > $i.tmp;tail -n+3 $i | cut -f7 >> $i.tmp;done
+            paste {output.tmp_counts} > {output.aggregated_raw_counts}
+            """
+
+    # Compute scaling factor with R and DESEQ2
+    rule compute_scaling_factors:
+        input:
+            aggregated_raw_counts = os.path.join(WORKDIR, "visualisation/normalisation/rawcounts.all.txt")
+        output:
+            scaling_factors = expand(os.path.join(WORKDIR, "visualisation/normalisation/{sample}_scalingfactor.txt"), sample = ALL_SAMPLES)
+        shell:
+            """
+            source activate full-pipe-spp
+            Rscript scripts/signal_normalisation.R {input}
+            """
+else:
+    rule compute_scaling_factors:
+        input:
+            bam = os.path.join(WORKDIR, "alignment/bams/{sample}.sorted.bam"),  
+            bai = os.path.join(WORKDIR, "alignment/bams/{sample}.sorted.bam.bai"),
+        output:
+            scaling_factor = os.path.join(WORKDIR, "visualisation/normalisation/{sample}_scalingfactor.txt")
+        shell:
+            """
+            echo '1' > {output}
+            """
 
 rule get_bigwigs:
     input : 
-        bam = os.path.join(WORKDIR, "alignment/downsampling/{sample}-downsample.sorted.bam"),
-        bai = os.path.join(WORKDIR, "alignment/downsampling/{sample}-downsample.sorted.bam.bai"),
-        spp = os.path.join(WORKDIR, "QC/phantompeakqualtools/{sample}.spp.out")
+        bam = os.path.join(WORKDIR, "alignment/bams/{sample}.sorted.bam"),
+        bai = os.path.join(WORKDIR, "alignment/bams/{sample}.sorted.bam.bai"),
+        scaling_factor = os.path.join(WORKDIR, "visualisation/normalisation/{sample}_scalingfactor.txt")
     output: os.path.join(WORKDIR, "visualisation/bigwigs/{sample}.bw")
-    log: os.path.join(WORKDIR, "logs/{sample}.makebw")
+    log: os.path.join(WORKDIR, "logs/{sample}.makebw.log")
     threads: 8
-    params: jobname = "{sample}"
-    message: "Making bigwig of {sample}"
     shell:
         """
         source activate full-pipe-main-env
-        bamCoverage -b {input.bam} --normalizeUsing RPKM --binSize 30 --smoothLength 150 --numberOfProcessors {threads} \
-        --extendReads `cut -f3 {input.spp} | awk 'BEGIN{{FS=","}}{{print $1}}'` -o {output} 2> {log}
+        bamCoverage -b {input.bam} --scaleFactor `cat {input.scaling_factor}` --binSize 10  --smoothLength 30 --ignoreDuplicates\
+        --numberOfProcessors {threads} --extendReads -o {output} 2> {log}
+        """
+
+rule get_bigwigs_using_inputs:
+    input : 
+        case =  os.path.join(WORKDIR, "visualisation/bigwigs/{casewithcontrol}.bw"),
+        control = get_control_bigwigs_with_input
+    output:  os.path.join(WORKDIR, "visualisation/bigwigs_with_control/{casewithcontrol}.bw")
+    log: os.path.join(WORKDIR, "logs/{casewithcontrol}.makebwinput")
+    threads: 8 
+    shell:
+        """
+        source activate full-pipe-main-env
+        bigwigCompare -b1 {input.case} -b2 {input.control} \
+        --operation log2 --scaleFactors 1:1 --numberOfProcessors {threads} \
+        -o {output} 2> {log}
         """
 
 # Cleaning peaks by taking only columns 1, 2, 3 because narrowpeaks and broadpeaks are different.
@@ -1127,7 +1230,7 @@ rule get_bigbeds:
 rule get_UCSC_hub:
     input:  
         bed = ALL_BIGBED, 
-        bigwig = ALL_BIGWIG
+        bigwig = ALL_BIGWIG_INPUT
     output:
         ALL_HUB
     log: os.path.join(WORKDIR, "logs/log.trackhub")
