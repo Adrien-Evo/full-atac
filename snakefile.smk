@@ -983,7 +983,7 @@ rule call_broad_peaks_macs2:
         source activate full-pipe-macs
         macs2 callpeak -t {input[0]} \
             {params.control} --keep-dup all -f {params.format} -g {config[macs2_g]} \
-            --outdir {params.outdir} -n {params.name} -q {config[macs2_qvalue]} --broad --broad-cutoff {config[macs2_qvalue_broad_cutoff]} &> {log}
+            --outdir {params.outdir} -n {params.name} -q {config[macs2_pvalue]} --broad --broad-cutoff {config[macs2_pvalue_broad_cutoff]} &> {log}
         """
 
 
@@ -1014,7 +1014,7 @@ rule call_narrow_peaks_macs2:
         source activate full-pipe-macs
         macs2 callpeak -t {input[0]} \
             {params.control} --nomodel --keep-dup all -f {params.format} -g {config[macs2_g]} \
-            --outdir {params.outdir} -n {params.name} -q {config[macs2_qvalue]} &> {log}
+            --outdir {params.outdir} -n {params.name} -q {config[macs2_pvalue]} &> {log}
         """
 
 

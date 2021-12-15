@@ -2,7 +2,7 @@ PROJECT_NAME: 'NTS-280'
 
 
 # Path to a JSON file with samples and their corresponding FASTQ files.
-SAMPLES_JSON: './test/samples_test_1.json'
+SAMPLES_JSON: './test/PRJNA491336/downsampled_test.json'
 OUTPUT_DIR: '/SCRATCH-BIRD/users/foucal-a/chiptest'
 
 # Name of your input
