@@ -1230,7 +1230,7 @@ rule get_bigbeds:
 rule get_UCSC_hub:
     input:  
         bed = ALL_BIGBED, 
-        bigwig = ALL_BIGWIG_INPUT
+        bigwig = ALL_BIGWIG
     output:
         ALL_HUB
     log: os.path.join(WORKDIR, "logs/log.trackhub")
